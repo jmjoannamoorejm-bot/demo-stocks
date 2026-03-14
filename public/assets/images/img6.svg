@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" role="img" aria-label="Trading confidence illustration">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#dff0e7" />
+      <stop offset="100%" stop-color="#fff3d8" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="460" fill="url(#g1)" />
+  <rect x="70" y="90" width="660" height="280" rx="18" fill="#ffffff" opacity="0.95" />
+  <path d="M120 300 C200 230 255 280 335 210 C420 140 500 210 620 130" fill="none" stroke="#0e5f58" stroke-width="12" stroke-linecap="round" />
+  <circle cx="620" cy="130" r="15" fill="#d46b2f" />
+</svg>

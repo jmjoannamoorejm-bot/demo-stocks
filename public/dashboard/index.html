@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard | Market Point Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/about/index.php">About</a></li>
+          <li><a data-nav-link href="/faq/index.php">FAQ</a></li>
+          <li><a data-nav-link href="/contact/index.php">Contact</a></li>
+        </ul>
+        <div class="auth-actions">
+          <button class="btn light" data-logout type="button">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard" data-dashboard>
+      <div class="container">
+        <section class="page-card">
+          <h1 style="margin: 0 0 6px">Welcome, <span data-user-name>User</span></h1>
+          <p class="section-subtitle" style="margin: 0">
+            Verify email first, complete KYC details, then manage deposits, investments, and withdrawals
+            from one workspace.
+          </p>
+        </section>
+
+        <section class="kpis">
+          <article class="kpi">
+            Available Balance
+            <strong data-kpi="balance">$0.00</strong>
+          </article>
+          <article class="kpi">
+            Active Investments
+            <strong data-kpi="active">0</strong>
+          </article>
+          <article class="kpi">
+            Completed Plans
+            <strong data-kpi="completed">0</strong>
+          </article>
+          <article class="kpi">
+            Withdrawal Total
+            <strong data-kpi="withdrawals">$0.00</strong>
+          </article>
+        </section>
+
+        <section class="page-card">
+          <h2>Email Verification</h2>
+          <p class="section-subtitle" style="margin: 0 0 10px">
+            Status: <span data-email-badge class="pill pending_review">Pending</span>
+          </p>
+          <p data-email-note class="notice">Add a 6-digit verification code for stronger account security.</p>
+
+          <form class="form-grid" data-email-request-form style="margin-top: 12px">
+            <button class="btn light" type="submit" data-email-request-button>Send Verification Code</button>
+          </form>
+
+          <form class="form-grid" data-email-confirm-form style="margin-top: 10px">
+            <div class="form-control">
+              <label for="emailCode">Verification Code</label>
+              <input
+                id="emailCode"
+                type="text"
+                name="code"
+                inputmode="numeric"
+                maxlength="6"
+                pattern="[0-9]{6}"
+                placeholder="Enter 6-digit code"
+                required
+              />
+            </div>
+            <button class="btn primary" type="submit" data-email-confirm-button>Verify Email</button>
+            <p class="form-message" data-email-message></p>
+          </form>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="page-card">
+            <h2>Start Investment</h2>
+            <form class="form-grid" data-invest-form>
+              <div class="form-control">
+                <label for="planId">Plan</label>
+                <select id="planId" name="planId"></select>
+              </div>
+              <div class="form-control">
+                <label for="investmentAmount">Amount (USD)</label>
+                <input id="investmentAmount" type="number" name="amount" min="1" step="0.01" required />
+              </div>
+              <button class="btn primary" type="submit">Start Plan</button>
+              <p class="form-message" data-invest-message></p>
+            </form>
+          </article>
+
+          <article class="page-card">
+            <h2>Withdrawal Access</h2>
+            <p class="section-subtitle" style="margin: 0 0 10px">Status: <span data-lock-badge class="pill locked">Locked</span></p>
+            <p data-lock-reason class="notice">KYC review required before withdrawals.</p>
+
+            <div class="progress-wrap" aria-label="KYC progress">
+              <div class="progress-track">
+                <div class="progress-fill" data-lock-progress style="width: 0%"></div>
+              </div>
+              <small data-lock-progress-label>0% complete</small>
+            </div>
+
+            <form class="form-grid" data-review-form style="margin-top: 14px">
+              <div class="form-control">
+                <label for="kycLegalName">Legal Name</label>
+                <input id="kycLegalName" name="legalName" type="text" required />
+              </div>
+              <div class="form-control">
+                <label for="kycDob">Date of Birth</label>
+                <input id="kycDob" name="dateOfBirth" type="date" required />
+              </div>
+              <div class="form-control">
+                <label for="kycCountry">Country</label>
+                <input id="kycCountry" name="country" type="text" required />
+              </div>
+              <div class="form-control">
+                <label for="kycIdType">ID Type</label>
+                <select id="kycIdType" name="idType" required>
+                  <option value="passport">Passport</option>
+                  <option value="national_id">National ID</option>
+                  <option value="drivers_license">Driver's License</option>
+                  <option value="residence_permit">Residence Permit</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label for="kycIdNumber">ID Number</label>
+                <input id="kycIdNumber" name="idNumber" type="text" required />
+              </div>
+              <div class="form-control">
+                <label for="kycAddress">Residential Address</label>
+                <input id="kycAddress" name="addressLine1" type="text" required />
+              </div>
+              <div class="form-control">
+                <label for="kycCity">City</label>
+                <input id="kycCity" name="city" type="text" required />
+              </div>
+              <div class="form-control">
+                <label for="kycState">State/Province</label>
+                <input id="kycState" name="stateOrProvince" type="text" />
+              </div>
+              <div class="form-control">
+                <label for="kycPostalCode">Postal Code</label>
+                <input id="kycPostalCode" name="postalCode" type="text" />
+              </div>
+              <div class="form-control">
+                <label for="kycPassportFile">Passport/ID Scan</label>
+                <input
+                  id="kycPassportFile"
+                  name="passportScanFile"
+                  type="file"
+                  accept=".pdf,image/*"
+                  required
+                />
+              </div>
+              <div class="form-control">
+                <label for="kycSelfieFile">Selfie Photo</label>
+                <input id="kycSelfieFile" name="selfiePhotoFile" type="file" accept="image/*" required />
+              </div>
+              <div class="form-control">
+                <label for="kycProofFile">Proof of Address</label>
+                <input
+                  id="kycProofFile"
+                  name="proofOfAddressFile"
+                  type="file"
+                  accept=".pdf,image/*"
+                  required
+                />
+              </div>
+              <div class="form-control">
+                <label for="reviewNote">KYC Note (optional)</label>
+                <textarea id="reviewNote" name="note" rows="3" placeholder="Any additional clarification"></textarea>
+              </div>
+              <button class="btn primary" type="submit" data-review-button>Request KYC Review</button>
+              <p class="form-message" data-review-message></p>
+            </form>
+          </article>
+        </section>
+
+        <section class="dashboard-grid" style="margin-top: 16px">
+          <article class="page-card">
+            <h2>Add Funds</h2>
+            <p class="notice">
+              Send USDT to the wallet below, then submit the transaction reference for review.
+            </p>
+            <div class="wallet-box" style="margin-top: 12px">
+              <p><strong>Deposit Wallet Address:</strong></p>
+              <code data-deposit-wallet-address>(not configured)</code>
+              <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap">
+                <button type="button" class="btn light" data-copy-deposit-wallet>Copy Address</button>
+              </div>
+            </div>
+            <form class="form-grid" data-deposit-form>
+              <div class="form-control">
+                <label for="depositAmount">Deposit Amount (USD)</label>
+                <input id="depositAmount" type="number" name="amount" min="50" step="0.01" required />
+              </div>
+              <div class="form-control">
+                <label for="depositNetwork">Network</label>
+                <select id="depositNetwork" name="network" data-deposit-network></select>
+              </div>
+              <div class="form-control">
+                <label for="depositTxRef">Transaction Reference</label>
+                <input id="depositTxRef" type="text" name="txReference" required placeholder="e.g. tx-987654" />
+              </div>
+              <button class="btn primary" type="submit" data-deposit-button>Submit Deposit Request</button>
+              <p class="form-message" data-deposit-message></p>
+            </form>
+          </article>
+
+          <article class="page-card">
+            <h2>Withdraw Funds <span data-withdraw-indicator class="pill locked">Locked</span></h2>
+            <form class="form-grid" data-withdraw-form>
+              <div class="form-control">
+                <label for="withdrawAmount">Withdrawal Amount (USD)</label>
+                <input id="withdrawAmount" type="number" name="amount" min="100" step="0.01" required />
+              </div>
+              <button class="btn primary" type="submit" data-withdraw-button>Request Withdrawal</button>
+              <p class="form-message" data-withdraw-message></p>
+            </form>
+            <p class="notice" style="margin-top: 14px">
+              Standard 1.5% processing fee applies after withdrawal access is approved.
+            </p>
+          </article>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Deposits</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Network</th>
+                  <th>Reference</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody data-deposits-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Withdrawals</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Amount</th>
+                  <th>Fee</th>
+                  <th>Net</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody data-withdrawals-body></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/dashboard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "market-point-pro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Market Point Pro web app",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development HOST=127.0.0.1 PORT=3000 node server.js"
+  }
+}

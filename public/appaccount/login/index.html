@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login | Market Point Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/about/index.php">About</a></li>
+          <li><a data-nav-link href="/faq/index.php">FAQ</a></li>
+          <li><a data-nav-link href="/contact/index.php">Contact</a></li>
+        </ul>
+        <div class="auth-actions">
+          <a class="btn light" href="/appaccount/login">Login</a>
+          <a class="btn primary" href="/appaccount/register">Register</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="auth-page">
+      <section class="auth-card">
+        <h1>Welcome Back</h1>
+        <p>Sign in to manage your portfolio and withdrawals.</p>
+
+        <form class="form-grid" data-auth-form data-auth-mode="login">
+          <div class="form-control">
+            <label for="email">Email</label>
+            <input id="email" type="email" name="email" required />
+          </div>
+          <div class="form-control">
+            <label for="password">Password</label>
+            <input id="password" type="password" name="password" required minlength="8" />
+          </div>
+          <button class="btn primary" type="submit">Login</button>
+          <p class="form-message" data-form-message></p>
+        </form>
+
+        <p>
+          New here?
+          <a href="/appaccount/register">Create an account</a>.
+        </p>
+      </section>
+    </main>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/auth.js"></script>
+  </body>
+</html>

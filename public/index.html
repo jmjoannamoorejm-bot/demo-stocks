@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Market Point Pro | Investment & Stocks Demo</title>
+    <meta
+      name="description"
+      content="Market Point Pro demo: transparent investment plan dashboard with public pages and account portal."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/about/index.php">About</a></li>
+          <li><a data-nav-link href="/faq/index.php">FAQ</a></li>
+          <li><a data-nav-link href="/contact/index.php">Contact</a></li>
+        </ul>
+        <div class="auth-actions">
+          <a class="btn light" href="/appaccount/login">Login</a>
+          <a class="btn primary" href="/appaccount/register">Register</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="container hero-wrap">
+          <div>
+            <p class="hero-eyebrow">Tesla Realm Labs</p>
+            <h1>Build high-conviction market positions with startup-speed execution.</h1>
+            <p>
+              A bold investing workspace blending TSLA market tracking, cross-asset research, and a
+              fast user portal designed for modern growth teams.
+            </p>
+            <a class="btn primary" href="/appaccount/register">Get Started</a>
+            <div class="hero-metrics" style="margin-top: 20px">
+              <article class="hero-metric">
+                <span>Live Watchlists</span>
+                <strong>42+</strong>
+              </article>
+              <article class="hero-metric">
+                <span>Core Markets</span>
+                <strong>4</strong>
+              </article>
+              <article class="hero-metric">
+                <span>TSLA Coverage</span>
+                <strong>Daily</strong>
+              </article>
+              <article class="hero-metric">
+                <span>Ops Uptime</span>
+                <strong>99.9%</strong>
+              </article>
+            </div>
+          </div>
+          <aside class="hero-slider">
+            <div class="slide-stack" aria-live="polite">
+              <article class="slide visual-slide active" data-slide>
+                <img src="/assets/images/boring-loop-1.webp" alt="The Boring Company tunnel drive" />
+                <div class="slide-scrim"></div>
+                <div class="slide-caption">
+                  <p class="slide-tag">The Boring Company</p>
+                  <h2>Vegas Loop transit, engineered for seamless flow.</h2>
+                </div>
+              </article>
+              <article class="slide visual-slide" data-slide>
+                <img src="/assets/images/boring-loop-2.webp" alt="Tesla vehicle in a Boring tunnel" />
+                <div class="slide-scrim"></div>
+                <div class="slide-caption">
+                  <p class="slide-tag">Rapid Infrastructure</p>
+                  <h2>A new approach to city-scale movement and execution.</h2>
+                </div>
+              </article>
+              <article class="slide visual-slide" data-slide>
+                <img src="/assets/images/neuralink-logo.png" alt="Neuralink visual mark" />
+                <div class="slide-scrim"></div>
+                <div class="slide-caption">
+                  <p class="slide-tag">Neuralink</p>
+                  <h2>Neural interface innovation shaping deep-tech futures.</h2>
+                </div>
+              </article>
+            </div>
+            <div class="slide-indicator">
+              <span class="active" data-dot></span>
+              <span data-dot></span>
+              <span data-dot></span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">TSLA Market Pulse</h2>
+          <p class="section-subtitle">
+            Live Tesla stock chart module for homepage tracking. Data is provided by TradingView.
+          </p>
+          <div class="tsla-grid">
+            <article class="tsla-meta">
+              <h3>NASDAQ: TSLA</h3>
+              <p>Track momentum, pullbacks, and breakout zones in a dedicated market panel.</p>
+              <div class="tsla-tags">
+                <span>Ticker: TSLA</span>
+                <span>Venue: NASDAQ</span>
+                <span>Sector: EV / Energy</span>
+              </div>
+            </article>
+            <article class="tsla-chart-card">
+              <iframe
+                title="TSLA TradingView Chart"
+                src="https://s.tradingview.com/widgetembed/?symbol=NASDAQ%3ATSLA&interval=D&hidesidetoolbar=1&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hideideas=1&saveimage=0"
+                loading="lazy"
+              ></iframe>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <h2 class="section-title">Asset Class Coverage</h2>
+          <p class="section-subtitle">
+            Explore multi-market exposure across traditional and digital instruments.
+          </p>
+          <div class="grid-4">
+            <article class="tile">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 16l5-5 4 4 7-7" />
+                  <path d="M14 8h6v6" />
+                </svg>
+              </span>
+              <h3>Stocks</h3>
+              <p>Large-cap, growth, and value-focused equity baskets.</p>
+            </article>
+            <article class="tile">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="4" y="6" width="16" height="4" rx="1.5" />
+                  <rect x="4" y="14" width="16" height="4" rx="1.5" />
+                </svg>
+              </span>
+              <h3>Bonds & ETFs</h3>
+              <p>Income and index-aligned vehicles for balanced portfolios.</p>
+            </article>
+            <article class="tile">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3l6 3v6c0 4.5-3 7.5-6 9-3-1.5-6-4.5-6-9V6l6-3z" />
+                  <path d="M9 12h6M12 9v6" />
+                </svg>
+              </span>
+              <h3>Crypto</h3>
+              <p>Digital asset watchlists with volatility-aware position sizing.</p>
+            </article>
+            <article class="tile">
+              <span class="tile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M3 10l9-6 9 6v10H3z" />
+                  <path d="M9 20v-6h6v6" />
+                </svg>
+              </span>
+              <h3>Real Estate</h3>
+              <p>Property-backed instruments and market performance tracking.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">Explore Solutions</h2>
+          <div class="alt-panel">
+            <div class="panel-visual">
+              <img
+                src="/assets/images/tesla-road.jpg"
+                alt="Tesla vehicle on road"
+                loading="lazy"
+              />
+            </div>
+            <article class="panel-copy">
+              <h3>Want more out of your stock trading?</h3>
+              <p>
+                Build a disciplined strategy with risk checks, entry planning, and portfolio-level
+                controls that scale with your account size.
+              </p>
+            </article>
+          </div>
+          <div class="alt-panel">
+            <div class="panel-visual">
+              <img
+                src="/assets/images/tesla-cybertruck.jpg"
+                alt="Tesla Cybertruck unveiling"
+                loading="lazy"
+              />
+            </div>
+            <article class="panel-copy">
+              <h3>High-tech solutions meet instant execution</h3>
+              <p>
+                Monitor allocations, review maturity windows, and submit portfolio actions through a
+                responsive dashboard built for desktop and mobile.
+              </p>
+            </article>
+          </div>
+          <div class="alt-panel">
+            <div class="panel-visual">
+              <img
+                src="/assets/images/spacex-falcon9.jpg"
+                alt="SpaceX Falcon 9 launch"
+                loading="lazy"
+              />
+            </div>
+            <article class="panel-copy">
+              <h3>One of the world’s most trusted broker experiences</h3>
+              <p>
+                This project uses transparent fee logic, straightforward disclosures, and no hidden
+                pre-withdrawal deposits.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">Deep Tech Video Briefings</h2>
+          <p class="section-subtitle">Two curated YouTube briefings around Boring Company and Neuralink trends.</p>
+          <div class="video-grid">
+            <article class="video-card">
+              <iframe
+                title="The Boring Company related briefing"
+                src="https://www.youtube.com/embed/tU5-Lqm2kqY"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+                loading="lazy"
+              ></iframe>
+            </article>
+            <article class="video-card">
+              <iframe
+                title="Neuralink related briefing"
+                src="https://www.youtube.com/embed/FASMejN_5gs"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allowfullscreen
+                loading="lazy"
+              ></iframe>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">About Us & Market Intelligence</h2>
+          <p class="section-subtitle">
+            With more than a decade of market infrastructure experience, our team publishes practical
+            trading guides, daily market commentary, and breaking analysis for investors.
+          </p>
+          <div class="grid-4">
+            <article class="tile">
+              <h3>Trading Guides</h3>
+              <p>Step-by-step walkthroughs for risk management and plan selection.</p>
+            </article>
+            <article class="tile">
+              <h3>Daily Commentary</h3>
+              <p>Context for macro events, price action, and sector rotation.</p>
+            </article>
+            <article class="tile">
+              <h3>News & Analysis</h3>
+              <p>Concise market updates focused on decision-useful signals.</p>
+            </article>
+            <article class="tile">
+              <h3>Education First</h3>
+              <p>Balanced product design built around transparency and user control.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">Our Board</h2>
+          <p class="section-subtitle">A sample leadership module for your cloned frontend structure.</p>
+          <div class="board-grid">
+            <article class="board-card">
+              <img
+                src="/assets/images/board-manager.jpg"
+                alt="Senior strategy director portrait"
+                loading="lazy"
+              />
+              <div class="board-copy">
+                <h3>Amina Okafor</h3>
+                <p>Chief Strategy Director</p>
+              </div>
+            </article>
+            <article class="board-card">
+              <img
+                src="/assets/images/elon-2025-cpac-a.jpg"
+                alt="Elon Musk portrait"
+                loading="lazy"
+              />
+              <div class="board-copy">
+                <h3>Elon Musk</h3>
+                <p>Innovation Advisor</p>
+              </div>
+            </article>
+            <article class="board-card">
+              <img
+                src="/assets/images/board-chair.jpg"
+                alt="Operations and finance lead portrait"
+                loading="lazy"
+              />
+              <div class="board-copy">
+                <h3>Daniel Reeves</h3>
+                <p>Board Chairman</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">Core Features</h2>
+          <p class="section-subtitle">Six key capability cards mirrored from your required grid layout.</p>
+          <div class="icon-grid">
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="6" width="18" height="12" rx="2.5" />
+                  <path d="M3 10h18" />
+                  <circle cx="16.5" cy="14" r="1.2" />
+                </svg>
+              </span>
+              <h3>Payment Options</h3>
+              <p>Flexible funding methods for account operations.</p>
+            </article>
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3l7 3v6c0 5-3.3 7.8-7 9-3.7-1.2-7-4-7-9V6l7-3z" />
+                  <path d="M9.2 12.2l1.9 1.9 3.7-3.8" />
+                </svg>
+              </span>
+              <h3>Strong Security</h3>
+              <p>Session-backed auth with hashed credentials.</p>
+            </article>
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 4v16M4 9h16M5.5 15h13" />
+                  <path d="M8 9l-3-4M16 9l3-4M8 15l-3 4M16 15l3 4" />
+                </svg>
+              </span>
+              <h3>Legal Compliance</h3>
+              <p>Clear fee disclosures and transparent withdrawal flow.</p>
+            </article>
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="5" width="18" height="11" rx="2" />
+                  <rect x="9" y="18" width="6" height="2" rx="1" />
+                  <path d="M8 16h8" />
+                </svg>
+              </span>
+              <h3>Cross Platform</h3>
+              <p>Mobile and desktop-optimized page structure.</p>
+            </article>
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M4 12h16M12 4a12 12 0 0 1 0 16M12 4a12 12 0 0 0 0 16" />
+                </svg>
+              </span>
+              <h3>World Coverage</h3>
+              <p>Asset categories across global regions.</p>
+            </article>
+            <article class="icon-card">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 20V10M10 20V4M16 20v-7M22 20v-4" />
+                  <path d="M2 20h22" />
+                </svg>
+              </span>
+              <h3>Advanced Reporting</h3>
+              <p>Investment and withdrawal history in one dashboard.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" style="padding-top: 8px">
+        <div class="container">
+          <h2 class="section-title">Our Investment Plans</h2>
+          <p class="section-subtitle">Structured tiers with standard limits and transparent durations.</p>
+          <div class="pricing-grid">
+            <article class="pricing-card">
+              <h3>Basic</h3>
+              <p class="price-meta">Entry-level portfolio cycle</p>
+              <ul>
+                <li>Min: $5,000</li>
+                <li>Max: $9,999</li>
+                <li>Duration: 24 Hours</li>
+                <li>Referral Bonus</li>
+                <li>Multiple Investments Allowed</li>
+                <li>24/7 Customer Care</li>
+              </ul>
+              <a class="btn primary" href="/appaccount/register">Start Investing</a>
+            </article>
+            <article class="pricing-card">
+              <h3>Silver</h3>
+              <p class="price-meta">Mid-capital growth cycle</p>
+              <ul>
+                <li>Min: $10,000</li>
+                <li>Max: $19,999</li>
+                <li>Duration: 72 Hours</li>
+                <li>Referral Bonus</li>
+                <li>Multiple Investments Allowed</li>
+                <li>24/7 Customer Care</li>
+              </ul>
+              <a class="btn primary" href="/appaccount/register">Start Investing</a>
+            </article>
+            <article class="pricing-card">
+              <h3>Gold</h3>
+              <p class="price-meta">Diversified weekly exposure</p>
+              <ul>
+                <li>Min: $10,000</li>
+                <li>Max: $49,999</li>
+                <li>Duration: 7 Days</li>
+                <li>Referral Bonus</li>
+                <li>Multiple Investments Allowed</li>
+                <li>24/7 Customer Care</li>
+              </ul>
+              <a class="btn primary" href="/appaccount/register">Start Investing</a>
+            </article>
+            <article class="pricing-card">
+              <h3>Platinum</h3>
+              <p class="price-meta">High-capital strategic position</p>
+              <ul>
+                <li>Min: $50,000</li>
+                <li>Max: $100,000</li>
+                <li>Duration: 14 Days</li>
+                <li>Referral Bonus</li>
+                <li>Multiple Investments Allowed</li>
+                <li>24/7 Customer Care</li>
+              </ul>
+              <a class="btn primary" href="/appaccount/register">Start Investing</a>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-grid">
+          <section>
+            <h4>Market Point Pro</h4>
+            <p>
+              A full-stack demo project modeled after a legacy investment landing page and account
+              portal architecture.
+            </p>
+            <span class="badge">Partner Badge Placeholder</span>
+          </section>
+          <section>
+            <h4>Quick Links</h4>
+            <ul>
+              <li><a href="/privacy-policy/index.php">Privacy Policy</a></li>
+              <li><a href="/contact/index.php">Contact</a></li>
+              <li><a href="/faq/index.php">FAQ</a></li>
+              <li><a href="/appaccount/login">Login</a></li>
+            </ul>
+          </section>
+          <section>
+            <h4>Newsletter</h4>
+            <form class="newsletter" data-newsletter>
+              <input type="email" name="email" placeholder="Enter email" required />
+              <button class="btn primary" type="submit">Join</button>
+            </form>
+            <p class="form-message" data-newsletter-message></p>
+            <p>Email: info@example.com</p>
+          </section>
+        </div>
+        <p class="copyright">© 2026, Market Point Pro Investment Demo.</p>
+      </div>
+    </footer>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/main.js"></script>
+
+    <!-- Optional live chat placeholder
+    <script type="text/javascript">
+      // Insert your Smartsupp embed script here if needed.
+    </script>
+    -->
+  </body>
+</html>

@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Controls | Market Point Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro Admin</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/dashboard">User Dashboard</a></li>
+          <li><a data-nav-link href="/admin/wallet-settings">Admin Controls</a></li>
+        </ul>
+      </div>
+    </header>
+
+    <main class="dashboard" data-admin-panel>
+      <div class="container">
+        <section class="page-card">
+          <h1 style="margin: 0 0 10px">Admin Controls</h1>
+          <p class="section-subtitle" style="margin: 0">
+            Manage wallet settings, KYC approvals, deposit requests, user balances, and core platform toggles.
+          </p>
+
+          <form class="form-grid" data-admin-auth style="margin-top: 12px">
+            <div class="form-control">
+              <label for="adminUsername">Admin Username</label>
+              <input id="adminUsername" name="username" type="text" placeholder="admin" />
+            </div>
+            <div class="form-control">
+              <label for="adminPassword">Admin Password</label>
+              <input id="adminPassword" name="password" type="password" placeholder="Enter admin password" />
+            </div>
+            <div class="form-control">
+              <label for="adminKey">Legacy Admin Key (optional)</label>
+              <input id="adminKey" name="adminKey" type="password" placeholder="Optional fallback key" />
+            </div>
+            <button class="btn primary" type="submit">Authenticate Admin</button>
+            <p class="form-message" data-admin-message></p>
+          </form>
+        </section>
+
+        <div data-admin-content hidden>
+        <section class="kpis">
+          <article class="kpi">Users<strong data-stat="users">0</strong></article>
+          <article class="kpi">Active Sessions<strong data-stat="sessions">0</strong></article>
+          <article class="kpi">Pending KYC<strong data-stat="kyc">0</strong></article>
+          <article class="kpi">Pending Deposits<strong data-stat="deposits">0</strong></article>
+          <article class="kpi">Pending Wallet Payments<strong data-stat="wallet_payments">0</strong></article>
+          <article class="kpi">Total Balance<strong data-stat="total_balance">$0.00</strong></article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="page-card">
+            <h2>Wallet Settings</h2>
+            <form class="form-grid" data-wallet-form>
+              <div class="form-control">
+                <label for="walletAddress">USDT Wallet Address</label>
+                <input id="walletAddress" name="walletAddress" type="text" placeholder="Enter wallet address" />
+              </div>
+              <div class="form-control">
+                <label for="defaultNetwork">Default Network</label>
+                <select id="defaultNetwork" name="defaultNetwork">
+                  <option value="ERC20">ERC20</option>
+                  <option value="TRC20">TRC20</option>
+                  <option value="BEP20">BEP20</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label for="walletPaymentsEnabled">Wallet Payments</label>
+                <select id="walletPaymentsEnabled" name="walletPaymentsEnabled">
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <button class="btn primary" type="submit">Update Wallet Settings</button>
+              <p class="form-message" data-wallet-message></p>
+            </form>
+          </article>
+
+          <article class="page-card">
+            <h2>System Toggles</h2>
+            <form class="form-grid" data-system-form>
+              <div class="form-control">
+                <label for="depositsEnabled">Deposits</label>
+                <select id="depositsEnabled" name="depositsEnabled">
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label for="investmentsEnabled">Investments</label>
+                <select id="investmentsEnabled" name="investmentsEnabled">
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label for="withdrawalsEnabled">Withdrawals</label>
+                <select id="withdrawalsEnabled" name="withdrawalsEnabled">
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label for="walletPaymentsToggle">Wallet Payments</label>
+                <select id="walletPaymentsToggle" name="walletPaymentsEnabled">
+                  <option value="on">On</option>
+                  <option value="off">Off</option>
+                </select>
+              </div>
+              <button class="btn primary" type="submit">Apply System Settings</button>
+              <p class="form-message" data-system-message></p>
+            </form>
+          </article>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Latest Notifications</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody data-notifications-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Pending KYC Reviews</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Requested</th>
+                  <th>Reason</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody data-kyc-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Pending Deposits</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Deposit ID</th>
+                  <th>User</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Network</th>
+                  <th>Reference</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody data-deposits-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>Wallet Payment Requests</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Payment ID</th>
+                  <th>User</th>
+                  <th>Amount</th>
+                  <th>Network</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody data-payments-body></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page-card" style="margin-top: 16px">
+          <h2>User Accounts</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Balance</th>
+                  <th>KYC / Email</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody data-users-body></tbody>
+            </table>
+          </div>
+        </section>
+        </div>
+      </div>
+    </main>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/admin.js"></script>
+  </body>
+</html>

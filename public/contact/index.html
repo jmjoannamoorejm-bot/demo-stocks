@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact | Market Point Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/about/index.php">About</a></li>
+          <li><a data-nav-link href="/faq/index.php">FAQ</a></li>
+          <li><a data-nav-link href="/contact/index.php">Contact</a></li>
+        </ul>
+        <div class="auth-actions">
+          <a class="btn light" href="/appaccount/login">Login</a>
+          <a class="btn primary" href="/appaccount/register">Register</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="page-hero">
+        <h1>Contact Us</h1>
+        <p>Reach the operations desk for account support and platform assistance.</p>
+      </section>
+
+      <section class="page-card">
+        <div class="dashboard-grid">
+          <article>
+            <h2>Contact Details</h2>
+            <p>Email: support@marketpointpro.example</p>
+            <p>Hours: 24/7 help desk</p>
+            <p>Address: 150 Market Square, New York, NY</p>
+          </article>
+          <article>
+            <h2>Message Form</h2>
+            <form class="form-grid">
+              <div class="form-control">
+                <label for="name">Name</label>
+                <input id="name" type="text" placeholder="Your name" />
+              </div>
+              <div class="form-control">
+                <label for="email">Email</label>
+                <input id="email" type="email" placeholder="Your email" />
+              </div>
+              <div class="form-control">
+                <label for="message">Message</label>
+                <textarea id="message" rows="4" placeholder="How can we help?"></textarea>
+              </div>
+              <button class="btn primary" type="button">Send Message</button>
+            </form>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-grid">
+          <section>
+            <h4>Market Point Pro</h4>
+            <p>Transparent investment operations demo.</p>
+          </section>
+          <section>
+            <h4>Links</h4>
+            <ul>
+              <li><a href="/privacy-policy/index.php">Privacy Policy</a></li>
+              <li><a href="/faq/index.php">FAQ</a></li>
+              <li><a href="/about/index.php">About</a></li>
+            </ul>
+          </section>
+          <section>
+            <h4>Newsletter</h4>
+            <form class="newsletter" data-newsletter>
+              <input type="email" name="email" placeholder="Enter email" required />
+              <button class="btn primary" type="submit">Join</button>
+            </form>
+            <p class="form-message" data-newsletter-message></p>
+          </section>
+        </div>
+        <p class="copyright">© 2026, Market Point Pro Investment Demo.</p>
+      </div>
+    </footer>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460" role="img" aria-label="Execution dashboard illustration">
+  <defs>
+    <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fcefd8" />
+      <stop offset="100%" stop-color="#e4f3eb" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="460" fill="url(#g2)" />
+  <rect x="85" y="75" width="630" height="310" rx="20" fill="#ffffff" />
+  <rect x="120" y="120" width="220" height="220" rx="10" fill="#f4efe3" />
+  <rect x="360" y="120" width="320" height="50" rx="10" fill="#e7f4ee" />
+  <rect x="360" y="190" width="320" height="50" rx="10" fill="#fff1e2" />
+  <rect x="360" y="260" width="320" height="50" rx="10" fill="#f0eee6" />
+</svg>

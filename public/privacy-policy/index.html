@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Policy | Market Point Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="logo" href="/index.php">Market Point Pro</a>
+        <button class="mobile-nav-btn" data-nav-toggle type="button">Menu</button>
+        <ul class="nav-links" data-nav>
+          <li><a data-nav-link href="/index.php">Home</a></li>
+          <li><a data-nav-link href="/about/index.php">About</a></li>
+          <li><a data-nav-link href="/faq/index.php">FAQ</a></li>
+          <li><a data-nav-link href="/contact/index.php">Contact</a></li>
+        </ul>
+        <div class="auth-actions">
+          <a class="btn light" href="/appaccount/login">Login</a>
+          <a class="btn primary" href="/appaccount/register">Register</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="page-hero">
+        <h1>Privacy Policy</h1>
+        <p>This demo explains how account, portfolio, and session data are stored locally for testing.</p>
+      </section>
+
+      <section class="page-card">
+        <h2>Data Usage</h2>
+        <p>
+          Registration, login sessions, investments, and withdrawals are kept in local JSON storage
+          (`data/db.json`) for development only.
+        </p>
+      </section>
+
+      <section class="page-card">
+        <h2>Security</h2>
+        <p>
+          Passwords are hashed using PBKDF2 with per-user salts. Replace local storage with a managed
+          database and production-grade auth before deployment.
+        </p>
+      </section>
+
+      <section class="page-card">
+        <h2>Transparent Fees</h2>
+        <p>
+          Withdrawal fees are disclosed at request time and deducted automatically; no hidden release
+          fees are enforced.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-grid">
+          <section>
+            <h4>Market Point Pro</h4>
+            <p>Transparent investment operations demo.</p>
+          </section>
+          <section>
+            <h4>Links</h4>
+            <ul>
+              <li><a href="/contact/index.php">Contact</a></li>
+              <li><a href="/faq/index.php">FAQ</a></li>
+              <li><a href="/about/index.php">About</a></li>
+            </ul>
+          </section>
+          <section>
+            <h4>Newsletter</h4>
+            <form class="newsletter" data-newsletter>
+              <input type="email" name="email" placeholder="Enter email" required />
+              <button class="btn primary" type="submit">Join</button>
+            </form>
+            <p class="form-message" data-newsletter-message></p>
+          </section>
+        </div>
+        <p class="copyright">© 2026, Market Point Pro Investment Demo.</p>
+      </div>
+    </footer>
+
+    <script src="/assets/js/app-shell.js"></script>
+    <script src="/assets/js/main.js"></script>
+  </body>
+</html>
