@@ -13,7 +13,13 @@ const EMAIL_CODE_RESEND_SECONDS = 60;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
 const ADMIN_DEFAULT_KEY = 'demo-admin-key';
 const ADMIN_DEFAULT_USERNAME = 'admin';
-const ADMIN_SESSION_TTL_HOURS = Number(process.env.ADMIN_SESSION_TTL_HOURS || 12);
+const ADMIN_SESSION_TTL_HOURS = Number.isFinite(Number(process.env.ADMIN_SESSION_TTL_HOURS))
+  ? Math.max(1, Number(process.env.ADMIN_SESSION_TTL_HOURS))
+  : 12;
+const USER_SESSION_TTL_HOURS = Number.isFinite(Number(process.env.USER_SESSION_TTL_HOURS))
+  ? Math.max(1, Number(process.env.USER_SESSION_TTL_HOURS))
+  : 24;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const plans = [
   {
@@ -124,6 +130,33 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function futureIsoFrom(baseIsoOrDate, ttlHours) {
+  const baseMs =
+    baseIsoOrDate && Number.isFinite(new Date(baseIsoOrDate).getTime())
+      ? new Date(baseIsoOrDate).getTime()
+      : Date.now();
+  return new Date(baseMs + ttlHours * 60 * 60 * 1000).toISOString();
+}
+
+function buildCookie(name, value, options = {}) {
+  const parts = [
+    `${name}=${encodeURIComponent(String(value || ''))}`,
+    'HttpOnly',
+    'Path=/',
+    'SameSite=Lax',
+  ];
+
+  if (IS_PRODUCTION) {
+    parts.push('Secure');
+  }
+
+  if (Number.isFinite(options.maxAgeSeconds)) {
+    parts.push(`Max-Age=${Math.max(0, Math.floor(options.maxAgeSeconds))}`);
+  }
+
+  return parts.join('; ');
+}
+
 function walletCipherKey() {
   const source =
     process.env.WALLET_ENCRYPTION_KEY || 'local-dev-wallet-encryption-key-change-for-production';
@@ -196,6 +229,27 @@ function ensureDbShape(db) {
     db.config.crypto.walletAddressEnc = '';
   }
 
+  Object.keys(db.sessions).forEach((token) => {
+    const session = db.sessions[token];
+    if (!session || typeof session !== 'object') {
+      delete db.sessions[token];
+      return;
+    }
+
+    if (typeof session.userId !== 'string' || !session.userId) {
+      delete db.sessions[token];
+      return;
+    }
+
+    if (!session.createdAt) {
+      session.createdAt = nowIso();
+    }
+
+    if (!session.expiresAt) {
+      session.expiresAt = futureIsoFrom(session.createdAt, USER_SESSION_TTL_HOURS);
+    }
+  });
+
   Object.keys(db.adminSessions).forEach((token) => {
     const session = db.adminSessions[token];
     if (!session || typeof session !== 'object') {
@@ -205,7 +259,7 @@ function ensureDbShape(db) {
     if (typeof session.actor !== 'string') session.actor = ADMIN_DEFAULT_USERNAME;
     if (!session.createdAt) session.createdAt = nowIso();
     if (!session.expiresAt) {
-      session.expiresAt = new Date(Date.now() + ADMIN_SESSION_TTL_HOURS * 60 * 60 * 1000).toISOString();
+      session.expiresAt = futureIsoFrom(session.createdAt, ADMIN_SESSION_TTL_HOURS);
     }
   });
 
@@ -369,10 +423,24 @@ function cleanupExpiredAdminSessions(db) {
   });
 }
 
+function cleanupExpiredUserSessions(db) {
+  const now = Date.now();
+  Object.keys(db.sessions).forEach((token) => {
+    const entry = db.sessions[token];
+    if (!entry || !entry.expiresAt) {
+      delete db.sessions[token];
+      return;
+    }
+    if (new Date(entry.expiresAt).getTime() <= now) {
+      delete db.sessions[token];
+    }
+  });
+}
+
 function createAdminSession(db, actor) {
   const token = randomId('adm');
   const createdAt = nowIso();
-  const expiresAt = new Date(Date.now() + ADMIN_SESSION_TTL_HOURS * 60 * 60 * 1000).toISOString();
+  const expiresAt = futureIsoFrom(createdAt, ADMIN_SESSION_TTL_HOURS);
   db.adminSessions[token] = {
     actor: actor || ADMIN_DEFAULT_USERNAME,
     createdAt,
@@ -649,6 +717,7 @@ function authContext(req, db) {
 
   const session = db.sessions[token];
   if (!session) return null;
+  if (!session.expiresAt || new Date(session.expiresAt).getTime() <= Date.now()) return null;
 
   const user = db.users.find((candidate) => candidate.id === session.userId);
   if (!user) return null;
@@ -696,6 +765,7 @@ async function handleApi(req, res, url) {
 
   settleMaturedInvestments(db);
   cleanupExpiredAdminSessions(db);
+  cleanupExpiredUserSessions(db);
 
   if (pathname === '/api/health' && method === 'GET') {
     writeDb(db);
@@ -744,7 +814,11 @@ async function handleApi(req, res, url) {
         actor,
         expiresAt: session.expiresAt,
       },
-      { 'Set-Cookie': `admin_session=${encodeURIComponent(session.token)}; HttpOnly; Path=/; SameSite=Lax` },
+      {
+        'Set-Cookie': buildCookie('admin_session', session.token, {
+          maxAgeSeconds: ADMIN_SESSION_TTL_HOURS * 60 * 60,
+        }),
+      },
     );
     return;
   }
@@ -760,7 +834,7 @@ async function handleApi(req, res, url) {
       res,
       200,
       { ok: true },
-      { 'Set-Cookie': 'admin_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' },
+      { 'Set-Cookie': buildCookie('admin_session', '', { maxAgeSeconds: 0 }) },
     );
     return;
   }
@@ -1143,9 +1217,12 @@ async function handleApi(req, res, url) {
     addAuditLog(db, 'user_registered', { userId: user.id, email: user.email });
 
     const token = randomId('sess');
+    const createdAt = nowIso();
+    const expiresAt = futureIsoFrom(createdAt, USER_SESSION_TTL_HOURS);
     db.sessions[token] = {
       userId: user.id,
-      createdAt: nowIso(),
+      createdAt,
+      expiresAt,
     };
 
     writeDb(db);
@@ -1157,7 +1234,11 @@ async function handleApi(req, res, url) {
         token,
         message: 'Account created. A verification code has been sent to your email.',
       },
-      { 'Set-Cookie': `session=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax` },
+      {
+        'Set-Cookie': buildCookie('session', token, {
+          maxAgeSeconds: USER_SESSION_TTL_HOURS * 60 * 60,
+        }),
+      },
     );
     return;
   }
@@ -1174,9 +1255,12 @@ async function handleApi(req, res, url) {
     }
 
     const token = randomId('sess');
+    const createdAt = nowIso();
+    const expiresAt = futureIsoFrom(createdAt, USER_SESSION_TTL_HOURS);
     db.sessions[token] = {
       userId: user.id,
-      createdAt: nowIso(),
+      createdAt,
+      expiresAt,
     };
 
     writeDb(db);
@@ -1185,7 +1269,11 @@ async function handleApi(req, res, url) {
       res,
       200,
       { user: safeUser(user), token },
-      { 'Set-Cookie': `session=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax` },
+      {
+        'Set-Cookie': buildCookie('session', token, {
+          maxAgeSeconds: USER_SESSION_TTL_HOURS * 60 * 60,
+        }),
+      },
     );
     return;
   }
@@ -1201,7 +1289,7 @@ async function handleApi(req, res, url) {
       res,
       200,
       { ok: true },
-      { 'Set-Cookie': 'session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' },
+      { 'Set-Cookie': buildCookie('session', '', { maxAgeSeconds: 0 }) },
     );
     return;
   }

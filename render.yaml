@@ -20,6 +20,8 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: USER_SESSION_TTL_HOURS
+        value: 24
       - key: WALLET_ENCRYPTION_KEY
         sync: false
       - key: RESEND_API_KEY
