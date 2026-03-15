@@ -41,6 +41,7 @@
   const depositTxRefInput = document.querySelector('#depositTxRef');
   const depositWalletAddress = document.querySelector('[data-deposit-wallet-address]');
   const copyDepositWalletButton = document.querySelector('[data-copy-deposit-wallet]');
+  const depositAssetLabels = document.querySelectorAll('[data-deposit-asset]');
   const depositsBody = document.querySelector('[data-deposits-body]');
 
   const reviewForm = document.querySelector('[data-review-form]');
@@ -70,6 +71,7 @@
       reviewedAt: null,
     },
     walletConfig: {
+      assetSymbol: 'USDT',
       walletAddress: '',
       defaultNetwork: 'TRC20',
       enabledNetworks: ['ERC20', 'TRC20', 'BEP20'],
@@ -173,22 +175,34 @@
   }
 
   function renderWalletConfig(config, systemSettings) {
-    state.walletConfig = config;
+    state.walletConfig = {
+      ...state.walletConfig,
+      ...(config || {}),
+    };
     state.systemSettings = systemSettings || state.systemSettings;
 
-    const networks = Array.isArray(config.enabledNetworks) && config.enabledNetworks.length
-      ? config.enabledNetworks
-      : ['ERC20', 'TRC20', 'BEP20'];
+    const networks = Array.isArray(state.walletConfig.enabledNetworks) && state.walletConfig.enabledNetworks.length
+      ? state.walletConfig.enabledNetworks
+      : [state.walletConfig.defaultNetwork || 'TRC20'];
 
-    depositNetworkSelect.innerHTML = networks
-      .map((network) => `<option value="${network}">${network}</option>`)
-      .join('');
+    depositNetworkSelect.innerHTML = '';
+    networks.forEach((network) => {
+      const option = document.createElement('option');
+      option.value = network;
+      option.textContent = network;
+      depositNetworkSelect.appendChild(option);
+    });
 
-    if (networks.includes(config.defaultNetwork)) {
-      depositNetworkSelect.value = config.defaultNetwork;
+    if (state.walletConfig.defaultNetwork && networks.includes(state.walletConfig.defaultNetwork)) {
+      depositNetworkSelect.value = state.walletConfig.defaultNetwork;
     }
 
-    depositWalletAddress.textContent = String(config.walletAddress || '').trim() || '(not configured)';
+    depositWalletAddress.textContent = String(state.walletConfig.walletAddress || '').trim() || '(not configured)';
+
+    const assetSymbol = String(state.walletConfig.assetSymbol || 'USDT').trim() || 'USDT';
+    depositAssetLabels.forEach((node) => {
+      node.textContent = assetSymbol;
+    });
   }
 
   function renderDeposits(deposits) {

@@ -66,16 +66,25 @@
             <h2>Wallet Settings</h2>
             <form class="form-grid" data-wallet-form>
               <div class="form-control">
-                <label for="walletAddress">USDT Wallet Address</label>
+                <label for="assetSymbol">Deposit Asset Symbol</label>
+                <input id="assetSymbol" name="assetSymbol" type="text" placeholder="e.g. USDT, BTC, ETH" />
+              </div>
+              <div class="form-control">
+                <label for="walletAddress">Wallet Address</label>
                 <input id="walletAddress" name="walletAddress" type="text" placeholder="Enter wallet address" />
               </div>
               <div class="form-control">
                 <label for="defaultNetwork">Default Network</label>
-                <select id="defaultNetwork" name="defaultNetwork">
-                  <option value="ERC20">ERC20</option>
-                  <option value="TRC20">TRC20</option>
-                  <option value="BEP20">BEP20</option>
-                </select>
+                <input id="defaultNetwork" name="defaultNetwork" type="text" placeholder="e.g. TRC20" />
+              </div>
+              <div class="form-control">
+                <label for="enabledNetworks">Enabled Networks (comma separated)</label>
+                <textarea
+                  id="enabledNetworks"
+                  name="enabledNetworks"
+                  rows="3"
+                  placeholder="e.g. ERC20, TRC20, BEP20, SOL"
+                ></textarea>
               </div>
               <div class="form-control">
                 <label for="walletPaymentsEnabled">Wallet Payments</label>
@@ -189,6 +198,7 @@
                   <th>Payment ID</th>
                   <th>User</th>
                   <th>Amount</th>
+                  <th>Asset</th>
                   <th>Network</th>
                   <th>Status</th>
                   <th>Action</th>

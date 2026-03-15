@@ -6,7 +6,8 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const DB_PATH = path.join(__dirname, 'data', 'db.json');
-const SUPPORTED_NETWORKS = ['ERC20', 'TRC20', 'BEP20'];
+const DEFAULT_ASSET_SYMBOL = 'USDT';
+const DEFAULT_ENABLED_NETWORKS = ['ERC20', 'TRC20', 'BEP20'];
 const SUPPORTED_KYC_ID_TYPES = ['passport', 'national_id', 'drivers_license', 'residence_permit'];
 const EMAIL_CODE_TTL_MINUTES = 15;
 const EMAIL_CODE_RESEND_SECONDS = 60;
@@ -157,6 +158,53 @@ function buildCookie(name, value, options = {}) {
   return parts.join('; ');
 }
 
+function normalizeNetworkName(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^A-Za-z0-9 ._()/-]/g, '')
+    .slice(0, 48);
+}
+
+function networkKey(value) {
+  return normalizeNetworkName(value).toLowerCase();
+}
+
+function sanitizeAssetSymbol(value) {
+  const candidate = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9._-]/g, '');
+  return candidate.slice(0, 16);
+}
+
+function sanitizeEnabledNetworks(input, fallback = []) {
+  const source = Array.isArray(input)
+    ? input
+    : String(input || '')
+        .split(/[,\n]/)
+        .map((item) => item.trim());
+
+  const deduped = [];
+  const seen = new Set();
+
+  source.forEach((item) => {
+    const normalized = normalizeNetworkName(item);
+    const key = networkKey(normalized);
+    if (!normalized || !key || seen.has(key)) return;
+    seen.add(key);
+    deduped.push(normalized);
+  });
+
+  if (deduped.length) return deduped;
+
+  const fallbackValues = Array.isArray(fallback) ? fallback : [];
+  return fallbackValues
+    .map((item) => normalizeNetworkName(item))
+    .filter(Boolean)
+    .filter((item, index, array) => array.findIndex((value) => networkKey(value) === networkKey(item)) === index);
+}
+
 function walletCipherKey() {
   const source =
     process.env.WALLET_ENCRYPTION_KEY || 'local-dev-wallet-encryption-key-change-for-production';
@@ -219,12 +267,34 @@ function ensureDbShape(db) {
   if (!db.config.crypto || typeof db.config.crypto !== 'object') {
     db.config.crypto = {};
   }
-  if (!Array.isArray(db.config.crypto.enabledNetworks) || !db.config.crypto.enabledNetworks.length) {
-    db.config.crypto.enabledNetworks = [...SUPPORTED_NETWORKS];
+  if (typeof db.config.crypto.assetSymbol !== 'string') {
+    db.config.crypto.assetSymbol = DEFAULT_ASSET_SYMBOL;
   }
-  if (!SUPPORTED_NETWORKS.includes(db.config.crypto.defaultNetwork)) {
-    db.config.crypto.defaultNetwork = 'TRC20';
+  db.config.crypto.assetSymbol = sanitizeAssetSymbol(db.config.crypto.assetSymbol) || DEFAULT_ASSET_SYMBOL;
+
+  db.config.crypto.enabledNetworks = sanitizeEnabledNetworks(
+    db.config.crypto.enabledNetworks,
+    DEFAULT_ENABLED_NETWORKS,
+  );
+
+  const normalizedDefaultNetwork = normalizeNetworkName(db.config.crypto.defaultNetwork);
+  if (!normalizedDefaultNetwork) {
+    db.config.crypto.defaultNetwork = db.config.crypto.enabledNetworks[0] || DEFAULT_ENABLED_NETWORKS[0];
+  } else {
+    const matchingDefault = db.config.crypto.enabledNetworks.find(
+      (network) => networkKey(network) === networkKey(normalizedDefaultNetwork),
+    );
+    if (matchingDefault) {
+      db.config.crypto.defaultNetwork = matchingDefault;
+    } else {
+      db.config.crypto.defaultNetwork = normalizedDefaultNetwork;
+      db.config.crypto.enabledNetworks = sanitizeEnabledNetworks(
+        [normalizedDefaultNetwork, ...db.config.crypto.enabledNetworks],
+        DEFAULT_ENABLED_NETWORKS,
+      );
+    }
   }
+
   if (typeof db.config.crypto.walletAddressEnc !== 'string') {
     db.config.crypto.walletAddressEnc = '';
   }
@@ -351,6 +421,7 @@ function addNotification(db, type, payload = {}) {
 function readCryptoConfig(db) {
   return {
     walletPaymentsEnabled: db.config.system.walletPaymentsEnabled,
+    assetSymbol: db.config.crypto.assetSymbol,
     defaultNetwork: db.config.crypto.defaultNetwork,
     enabledNetworks: db.config.crypto.enabledNetworks,
     walletAddress: decryptText(db.config.crypto.walletAddressEnc),
@@ -485,9 +556,10 @@ function ensureDb() {
           walletPaymentsEnabled: true,
         },
         crypto: {
+          assetSymbol: DEFAULT_ASSET_SYMBOL,
           walletAddressEnc: '',
-          defaultNetwork: 'TRC20',
-          enabledNetworks: [...SUPPORTED_NETWORKS],
+          defaultNetwork: DEFAULT_ENABLED_NETWORKS[0],
+          enabledNetworks: [...DEFAULT_ENABLED_NETWORKS],
         },
       },
     };
@@ -953,23 +1025,43 @@ async function handleApi(req, res, url) {
 
     const body = await parseBody(req);
     const walletAddress = String(body.walletAddress || '').trim();
-    const defaultNetwork = String(body.defaultNetwork || '').trim().toUpperCase();
+    const assetSymbol = sanitizeAssetSymbol(body.assetSymbol);
+    const defaultNetwork = normalizeNetworkName(body.defaultNetwork);
+    const enabledNetworks = sanitizeEnabledNetworks(body.enabledNetworks, []);
     const walletPaymentsEnabled =
       typeof body.walletPaymentsEnabled === 'boolean'
         ? body.walletPaymentsEnabled
         : db.config.system.walletPaymentsEnabled;
 
-    if (!SUPPORTED_NETWORKS.includes(defaultNetwork)) {
-      sendJson(res, 400, { error: 'Invalid network selection.' });
+    if (!assetSymbol) {
+      sendJson(res, 400, { error: 'Asset symbol is required.' });
       return;
     }
 
+    if (!defaultNetwork) {
+      sendJson(res, 400, { error: 'Default network is required.' });
+      return;
+    }
+
+    const hasDefaultNetwork = enabledNetworks.some(
+      (network) => networkKey(network) === networkKey(defaultNetwork),
+    );
+    const finalizedNetworks = hasDefaultNetwork
+      ? enabledNetworks
+      : sanitizeEnabledNetworks([defaultNetwork, ...enabledNetworks], [defaultNetwork]);
+    const finalizedDefaultNetwork =
+      finalizedNetworks.find((network) => networkKey(network) === networkKey(defaultNetwork)) || defaultNetwork;
+
     db.config.system.walletPaymentsEnabled = walletPaymentsEnabled;
-    db.config.crypto.defaultNetwork = defaultNetwork;
+    db.config.crypto.assetSymbol = assetSymbol;
+    db.config.crypto.defaultNetwork = finalizedDefaultNetwork;
+    db.config.crypto.enabledNetworks = finalizedNetworks;
     db.config.crypto.walletAddressEnc = encryptText(walletAddress);
 
     addAuditLog(db, 'admin_wallet_settings_updated', {
-      defaultNetwork,
+      assetSymbol,
+      defaultNetwork: finalizedDefaultNetwork,
+      enabledNetworks: finalizedNetworks,
       walletPaymentsEnabled,
       walletUpdated: Boolean(walletAddress),
     });
@@ -1604,7 +1696,7 @@ async function handleApi(req, res, url) {
 
     const body = await parseBody(req);
     const amount = Number(body.amount);
-    const network = String(body.network || cryptoConfig.defaultNetwork || '').trim().toUpperCase();
+    const requestedNetwork = normalizeNetworkName(body.network || cryptoConfig.defaultNetwork || '');
     const txReference = String(body.txReference || '').trim();
 
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -1615,7 +1707,9 @@ async function handleApi(req, res, url) {
       sendJson(res, 400, { error: 'Minimum deposit is $50.' });
       return;
     }
-    if (!cryptoConfig.enabledNetworks.includes(network)) {
+    const selectedNetwork =
+      cryptoConfig.enabledNetworks.find((network) => networkKey(network) === networkKey(requestedNetwork)) || '';
+    if (!selectedNetwork) {
       sendJson(res, 400, { error: 'Selected network is not enabled.' });
       return;
     }
@@ -1628,8 +1722,8 @@ async function handleApi(req, res, url) {
       id: randomId('dep'),
       userId: auth.user.id,
       amount: normalizeMoney(amount),
-      method: 'USDT',
-      network,
+      method: cryptoConfig.assetSymbol || DEFAULT_ASSET_SYMBOL,
+      network: selectedNetwork,
       walletAddress: cryptoConfig.walletAddress,
       txReference,
       status: 'pending',
@@ -1689,14 +1783,16 @@ async function handleApi(req, res, url) {
 
     const body = await parseBody(req);
     const amount = Number(body.amount);
-    const network = String(body.network || '').trim().toUpperCase();
+    const requestedNetwork = normalizeNetworkName(body.network || cryptoConfig.defaultNetwork || '');
     const txReference = String(body.txReference || '').trim();
 
     if (!Number.isFinite(amount) || amount <= 0) {
       sendJson(res, 400, { error: 'Amount must be greater than zero.' });
       return;
     }
-    if (!cryptoConfig.enabledNetworks.includes(network)) {
+    const selectedNetwork =
+      cryptoConfig.enabledNetworks.find((network) => networkKey(network) === networkKey(requestedNetwork)) || '';
+    if (!selectedNetwork) {
       sendJson(res, 400, { error: 'Selected network is not enabled.' });
       return;
     }
@@ -1722,8 +1818,8 @@ async function handleApi(req, res, url) {
       id: randomId('cpr'),
       userId: auth.user.id,
       amount: normalizeMoney(amount),
-      asset: 'USDT',
-      network,
+      asset: cryptoConfig.assetSymbol || DEFAULT_ASSET_SYMBOL,
+      network: selectedNetwork,
       walletAddress: cryptoConfig.walletAddress || '(not configured)',
       txReference,
       status: 'pending_verification',
@@ -1736,7 +1832,7 @@ async function handleApi(req, res, url) {
     addAuditLog(db, 'wallet_payment_submitted', {
       userId: auth.user.id,
       paymentRequestId: paymentRequest.id,
-      network,
+      network: selectedNetwork,
       amount: paymentRequest.amount,
     });
     addNotification(db, 'wallet_payment_submitted', {

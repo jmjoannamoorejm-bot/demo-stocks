@@ -192,7 +192,7 @@
 
   function renderPayments(items) {
     if (!Array.isArray(items) || !items.length) {
-      paymentsBody.innerHTML = '<tr><td colspan="6">No wallet payment requests.</td></tr>';
+      paymentsBody.innerHTML = '<tr><td colspan="7">No wallet payment requests.</td></tr>';
       return;
     }
 
@@ -203,6 +203,7 @@
           <td>${item.id}</td>
           <td>${item.userId}</td>
           <td>${money.format(Number(item.amount || 0))}</td>
+          <td>${item.asset || '-'}</td>
           <td>${item.network || '-'}</td>
           <td><span class="pill ${statusPillClass(item.status)}">${String(item.status || '').replace(/_/g, ' ')}</span></td>
           <td>
@@ -241,8 +242,13 @@
   }
 
   function applyWalletConfig(config) {
+    const enabledNetworks = Array.isArray(config.enabledNetworks) ? config.enabledNetworks : [];
+    const fallbackDefault = enabledNetworks[0] || '';
+
+    walletForm.querySelector('[name="assetSymbol"]').value = config.assetSymbol || 'USDT';
     walletForm.querySelector('[name="walletAddress"]').value = config.walletAddress || '';
-    walletForm.querySelector('[name="defaultNetwork"]').value = config.defaultNetwork || 'TRC20';
+    walletForm.querySelector('[name="defaultNetwork"]').value = config.defaultNetwork || fallbackDefault;
+    walletForm.querySelector('[name="enabledNetworks"]').value = enabledNetworks.join(', ');
     walletForm.querySelector('[name="walletPaymentsEnabled"]').value = config.walletPaymentsEnabled ? 'on' : 'off';
   }
 
@@ -308,10 +314,16 @@
     setMessage(walletMessage, '');
 
     const payload = {
+      assetSymbol: String(walletForm.querySelector('[name="assetSymbol"]').value || '').trim(),
       walletAddress: String(walletForm.querySelector('[name="walletAddress"]').value || '').trim(),
-      defaultNetwork: String(walletForm.querySelector('[name="defaultNetwork"]').value || 'TRC20').trim(),
+      defaultNetwork: String(walletForm.querySelector('[name="defaultNetwork"]').value || '').trim(),
+      enabledNetworks: String(walletForm.querySelector('[name="enabledNetworks"]').value || '').trim(),
       walletPaymentsEnabled: walletForm.querySelector('[name="walletPaymentsEnabled"]').value === 'on',
     };
+
+    if (!payload.defaultNetwork && payload.enabledNetworks) {
+      payload.defaultNetwork = String(payload.enabledNetworks.split(',')[0] || '').trim();
+    }
 
     try {
       await adminJson('/api/admin/wallet-settings', {
