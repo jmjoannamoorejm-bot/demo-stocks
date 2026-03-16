@@ -367,6 +367,7 @@ function ensureDbShape(db) {
 
   db.users.forEach((user) => {
     if (!Number.isFinite(user.balance)) user.balance = 0;
+    user.kpiOverrides = normalizeKpiOverrides(user.kpiOverrides);
 
     if (!user.withdrawalAccess || typeof user.withdrawalAccess !== 'object') {
       user.withdrawalAccess = {
@@ -824,6 +825,49 @@ function normalizeMoney(value) {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeKpiOverrides(overrides) {
+  const source = overrides && typeof overrides === 'object' ? overrides : {};
+  const totalDeposits = Number(source.totalDeposits);
+  const activeInvestments = Number(source.activeInvestments);
+  const realizedProfit = Number(source.realizedProfit);
+
+  return {
+    totalDeposits: Number.isFinite(totalDeposits) && totalDeposits >= 0 ? normalizeMoney(totalDeposits) : null,
+    activeInvestments:
+      Number.isFinite(activeInvestments) && activeInvestments >= 0 ? Math.floor(activeInvestments) : null,
+    realizedProfit: Number.isFinite(realizedProfit) && realizedProfit >= 0 ? normalizeMoney(realizedProfit) : null,
+  };
+}
+
+function computeUserDashboardKpis(db, user) {
+  const overrides = normalizeKpiOverrides(user.kpiOverrides);
+  const totalDepositsComputed = normalizeMoney(
+    db.deposits
+      .filter((deposit) => deposit.userId === user.id && deposit.status === 'approved')
+      .reduce((sum, deposit) => sum + Number(deposit.amount || 0), 0),
+  );
+  const activeInvestmentsComputed = db.investments.filter(
+    (investment) => investment.userId === user.id && investment.status === 'active',
+  ).length;
+  const realizedProfitComputed = normalizeMoney(
+    db.investments
+      .filter((investment) => investment.userId === user.id && investment.status === 'completed')
+      .reduce(
+        (sum, investment) =>
+          sum + Number(investment.amount || 0) * (Number(investment.returnPercent || 0) / 100),
+        0,
+      ),
+  );
+
+  return {
+    availableBalance: normalizeMoney(Number(user.balance || 0)),
+    totalDeposits: overrides.totalDeposits ?? totalDepositsComputed,
+    activeInvestments: overrides.activeInvestments ?? activeInvestmentsComputed,
+    realizedProfit: overrides.realizedProfit ?? realizedProfitComputed,
+    overrides,
+  };
+}
+
 function settleMaturedInvestments(db, userId) {
   const now = new Date();
   const userIds = userId ? new Set([userId]) : null;
@@ -873,6 +917,7 @@ function safeUser(user) {
     name: user.name,
     email: user.email,
     balance: user.balance,
+    kpiOverrides: normalizeKpiOverrides(user.kpiOverrides),
     emailVerification: safeEmailVerification(user),
     withdrawalAccess: user.withdrawalAccess,
     kycProfile: user.kycProfile
@@ -1038,15 +1083,19 @@ async function handleApi(req, res, url) {
     const users = db.users
       .slice()
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-      .map((user) => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        balance: user.balance,
-        kycStatus: user.withdrawalAccess.status,
-        emailVerified: Boolean(user.emailVerification && user.emailVerification.verified),
-        createdAt: user.createdAt,
-      }));
+      .map((user) => {
+        const kpis = computeUserDashboardKpis(db, user);
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          balance: user.balance,
+          kycStatus: user.withdrawalAccess.status,
+          emailVerified: Boolean(user.emailVerification && user.emailVerification.verified),
+          createdAt: user.createdAt,
+          kpis,
+        };
+      });
 
     writeDb(db);
     sendJson(res, 200, {
@@ -1286,6 +1335,69 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (pathname === '/api/admin/users/kpis' && method === 'POST') {
+    if (!isAdminRequest(req, db)) {
+      sendJson(res, 401, { error: 'Admin authentication required.' });
+      return;
+    }
+
+    const body = await parseBody(req);
+    const userId = String(body.userId || '').trim();
+    const availableBalance = Number(body.availableBalance);
+    const totalDeposits = Number(body.totalDeposits);
+    const activeInvestments = Number(body.activeInvestments);
+    const realizedProfit = Number(body.realizedProfit);
+
+    if (!userId) {
+      sendJson(res, 400, { error: 'userId is required.' });
+      return;
+    }
+
+    const invalid =
+      !Number.isFinite(availableBalance) ||
+      availableBalance < 0 ||
+      !Number.isFinite(totalDeposits) ||
+      totalDeposits < 0 ||
+      !Number.isFinite(activeInvestments) ||
+      activeInvestments < 0 ||
+      !Number.isFinite(realizedProfit) ||
+      realizedProfit < 0;
+
+    if (invalid) {
+      sendJson(res, 400, {
+        error: 'availableBalance, totalDeposits, activeInvestments, and realizedProfit must be valid non-negative numbers.',
+      });
+      return;
+    }
+
+    const user = db.users.find((candidate) => candidate.id === userId);
+    if (!user) {
+      sendJson(res, 404, { error: 'User not found.' });
+      return;
+    }
+
+    user.balance = normalizeMoney(availableBalance);
+    user.kpiOverrides = {
+      totalDeposits: normalizeMoney(totalDeposits),
+      activeInvestments: Math.floor(activeInvestments),
+      realizedProfit: normalizeMoney(realizedProfit),
+    };
+
+    const kpis = computeUserDashboardKpis(db, user);
+
+    addAuditLog(db, 'admin_user_dashboard_kpis_adjusted', {
+      userId,
+      availableBalance: kpis.availableBalance,
+      totalDeposits: kpis.totalDeposits,
+      activeInvestments: kpis.activeInvestments,
+      realizedProfit: kpis.realizedProfit,
+    });
+
+    writeDb(db);
+    sendJson(res, 200, { message: 'User dashboard metrics updated.', user: safeUser(user), kpis });
+    return;
+  }
+
   if (pathname === '/api/admin/payments/verify' && method === 'POST') {
     if (!isAdminRequest(req, db)) {
       sendJson(res, 401, { error: 'Admin authentication required.' });
@@ -1356,6 +1468,11 @@ async function handleApi(req, res, url) {
       email,
       passwordHash: hashPassword(password),
       balance: 0,
+      kpiOverrides: {
+        totalDeposits: null,
+        activeInvestments: null,
+        realizedProfit: null,
+      },
       emailVerification: {
         verified: false,
         codeHash: '',
@@ -1925,9 +2042,10 @@ async function handleApi(req, res, url) {
     }
 
     settleMaturedInvestments(db, auth.user.id);
+    const dashboardKpis = computeUserDashboardKpis(db, auth.user);
     writeDb(db);
 
-    sendJson(res, 200, { user: safeUser(auth.user) });
+    sendJson(res, 200, { user: safeUser(auth.user), dashboardKpis });
     return;
   }
 

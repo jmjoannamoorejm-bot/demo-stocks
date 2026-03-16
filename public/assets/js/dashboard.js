@@ -403,23 +403,38 @@
 
     const investments = investmentData.investments || [];
     const deposits = depositData.deposits || [];
+    const serverKpis = meData.dashboardKpis || {};
 
-    const activeCount = investments.filter((inv) => inv.status === 'active').length;
-    const realizedProfit = normalizeMoney(
+    let activeCount = investments.filter((inv) => inv.status === 'active').length;
+    let realizedProfit = normalizeMoney(
       investments
         .filter((inv) => inv.status === 'completed')
         .reduce((sum, inv) => sum + Number(inv.amount || 0) * (Number(inv.returnPercent || 0) / 100), 0),
     );
-    const totalDeposits = normalizeMoney(
+    let totalDeposits = normalizeMoney(
       deposits
         .filter((item) => String(item.status || '').toLowerCase() === 'approved')
         .reduce((sum, item) => sum + Number(item.amount || 0), 0),
     );
+    let availableBalance = Number(meData.user.balance || 0);
+
+    if (Number.isFinite(Number(serverKpis.totalDeposits))) {
+      totalDeposits = normalizeMoney(Number(serverKpis.totalDeposits));
+    }
+    if (Number.isFinite(Number(serverKpis.activeInvestments))) {
+      activeCount = Math.max(0, Math.floor(Number(serverKpis.activeInvestments)));
+    }
+    if (Number.isFinite(Number(serverKpis.realizedProfit))) {
+      realizedProfit = normalizeMoney(Number(serverKpis.realizedProfit));
+    }
+    if (Number.isFinite(Number(serverKpis.availableBalance))) {
+      availableBalance = normalizeMoney(Number(serverKpis.availableBalance));
+    }
 
     animateKpi(kpiDeposits, totalDeposits, { currency: true });
     animateKpi(kpiActive, activeCount);
     animateKpi(kpiProfit, realizedProfit, { currency: true });
-    animateKpi(kpiBalance, Number(meData.user.balance || 0), { currency: true });
+    animateKpi(kpiBalance, availableBalance, { currency: true });
 
     applyActionLocks();
   }

@@ -222,22 +222,46 @@
     }
 
     usersBody.innerHTML = items
-      .map(
-        (item) => `<tr>
+      .map((item) => {
+        const kpis = item.kpis || {};
+        const availableBalance = Number.isFinite(Number(kpis.availableBalance))
+          ? Number(kpis.availableBalance)
+          : Number(item.balance || 0);
+        const totalDeposits = Number.isFinite(Number(kpis.totalDeposits)) ? Number(kpis.totalDeposits) : 0;
+        const activeInvestments = Number.isFinite(Number(kpis.activeInvestments))
+          ? Math.max(0, Math.floor(Number(kpis.activeInvestments)))
+          : 0;
+        const realizedProfit = Number.isFinite(Number(kpis.realizedProfit)) ? Number(kpis.realizedProfit) : 0;
+
+        return `<tr>
           <td>${item.name || item.id}</td>
           <td>${item.email || '-'}</td>
-          <td>${money.format(Number(item.balance || 0))}</td>
+          <td>${money.format(availableBalance)}</td>
           <td>
             <span class="pill ${statusPillClass(item.kycStatus)}">${String(item.kycStatus || '-').replace(/_/g, ' ')}</span>
             <div style="margin-top: 6px; font-size: 0.82rem; color: #5a6c82;">
               Email: ${item.emailVerified ? 'verified' : 'pending'}
             </div>
+            <div style="margin-top: 6px; font-size: 0.82rem; color: #5a6c82;">
+              Deposits: ${money.format(totalDeposits)} | Active: ${activeInvestments} | Profit: ${money.format(realizedProfit)}
+            </div>
           </td>
           <td>
             <button class="btn light" data-user-balance="${item.id}">Adjust Balance</button>
+            <button
+              class="btn light"
+              data-user-kpis="${item.id}"
+              data-kpi-balance="${availableBalance}"
+              data-kpi-deposits="${totalDeposits}"
+              data-kpi-active="${activeInvestments}"
+              data-kpi-profit="${realizedProfit}"
+              style="margin-top: 8px"
+            >
+              Adjust Dashboard KPIs
+            </button>
           </td>
-        </tr>`,
-      )
+        </tr>`;
+      })
       .join('');
   }
 
@@ -434,6 +458,72 @@
   usersBody.addEventListener('click', async (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+
+    const kpiUserId = target.getAttribute('data-user-kpis');
+    if (kpiUserId) {
+      const balanceInput = window.prompt(
+        'Set Available Balance (USD):',
+        String(target.getAttribute('data-kpi-balance') || '0'),
+      );
+      if (balanceInput === null) return;
+
+      const depositsInput = window.prompt(
+        'Set Total Deposits KPI (USD):',
+        String(target.getAttribute('data-kpi-deposits') || '0'),
+      );
+      if (depositsInput === null) return;
+
+      const activeInput = window.prompt(
+        'Set Active Investments KPI (count):',
+        String(target.getAttribute('data-kpi-active') || '0'),
+      );
+      if (activeInput === null) return;
+
+      const profitInput = window.prompt(
+        'Set Realized Profit KPI (USD):',
+        String(target.getAttribute('data-kpi-profit') || '0'),
+      );
+      if (profitInput === null) return;
+
+      const availableBalance = Number(balanceInput);
+      const totalDeposits = Number(depositsInput);
+      const activeInvestments = Number(activeInput);
+      const realizedProfit = Number(profitInput);
+
+      const invalid =
+        !Number.isFinite(availableBalance) ||
+        availableBalance < 0 ||
+        !Number.isFinite(totalDeposits) ||
+        totalDeposits < 0 ||
+        !Number.isFinite(activeInvestments) ||
+        activeInvestments < 0 ||
+        !Number.isFinite(realizedProfit) ||
+        realizedProfit < 0;
+
+      if (invalid) {
+        setMessage(adminMessage, 'All KPI values must be valid non-negative numbers.', 'error');
+        return;
+      }
+
+      try {
+        await adminJson('/api/admin/users/kpis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: kpiUserId,
+            availableBalance,
+            totalDeposits,
+            activeInvestments,
+            realizedProfit,
+          }),
+        });
+        setMessage(adminMessage, 'User dashboard KPIs updated.', 'success');
+        await loadOverview();
+      } catch (error) {
+        setMessage(adminMessage, error.message, 'error');
+      }
+      return;
+    }
 
     const userId = target.getAttribute('data-user-balance');
     if (!userId) return;
