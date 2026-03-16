@@ -8,10 +8,10 @@
     maximumFractionDigits: 2,
   });
 
-  const kpiBalance = document.querySelector('[data-kpi="balance"]');
+  const kpiDeposits = document.querySelector('[data-kpi="deposits"]');
   const kpiActive = document.querySelector('[data-kpi="active"]');
-  const kpiCompleted = document.querySelector('[data-kpi="completed"]');
-  const kpiWithdrawals = document.querySelector('[data-kpi="withdrawals"]');
+  const kpiProfit = document.querySelector('[data-kpi="profit"]');
+  const kpiBalance = document.querySelector('[data-kpi="balance"]');
 
   const emailBadge = document.querySelector('[data-email-badge]');
   const emailNote = document.querySelector('[data-email-note]');
@@ -40,6 +40,8 @@
   const depositNetworkSelect = document.querySelector('[data-deposit-network]');
   const depositTxRefInput = document.querySelector('#depositTxRef');
   const depositWalletAddress = document.querySelector('[data-deposit-wallet-address]');
+  const depositWalletLink = document.querySelector('[data-deposit-wallet-link]');
+  const openDepositWalletButton = document.querySelector('[data-open-deposit-wallet]');
   const copyDepositWalletButton = document.querySelector('[data-copy-deposit-wallet]');
   const depositAssetLabels = document.querySelectorAll('[data-deposit-asset]');
   const depositsBody = document.querySelector('[data-deposits-body]');
@@ -87,6 +89,47 @@
 
   function normalizeMoney(value) {
     return Math.round(value * 100) / 100;
+  }
+
+  function animateKpi(el, target, options = {}) {
+    if (!el) return;
+
+    const isCurrency = Boolean(options.currency);
+    const decimals = Number.isFinite(options.decimals) ? options.decimals : isCurrency ? 2 : 0;
+    const duration = 700;
+    const start = performance.now();
+
+    function formatValue(value) {
+      if (isCurrency) return money.format(value);
+      return Number(value).toFixed(decimals);
+    }
+
+    const from = Number(el.dataset.lastValue || 0);
+    const to = Number.isFinite(target) ? target : 0;
+    el.dataset.lastValue = String(to);
+
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const value = from + (to - from) * eased;
+      el.textContent = formatValue(value);
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function walletExplorerLink(address, assetSymbol) {
+    const text = String(address || '').trim();
+    if (!text) return '';
+
+    const symbol = String(assetSymbol || '').trim().toUpperCase();
+    if (/^0x[a-fA-F0-9]{40}$/.test(text)) return `https://etherscan.io/address/${text}`;
+    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(text)) return `https://tronscan.org/#/address/${text}`;
+    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,90}$/.test(text) || symbol === 'BTC') {
+      return `https://www.blockchain.com/explorer/addresses/btc/${text}`;
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(text)}`;
   }
 
   function setMessage(el, text, type) {
@@ -197,9 +240,32 @@
       depositNetworkSelect.value = state.walletConfig.defaultNetwork;
     }
 
-    depositWalletAddress.textContent = String(state.walletConfig.walletAddress || '').trim() || '(not configured)';
-
     const assetSymbol = String(state.walletConfig.assetSymbol || 'USDT').trim() || 'USDT';
+    const walletAddress = String(state.walletConfig.walletAddress || '').trim();
+    const walletHref = walletExplorerLink(walletAddress, assetSymbol);
+
+    depositWalletAddress.textContent = walletAddress || '(not configured)';
+
+    if (depositWalletLink) {
+      depositWalletLink.href = walletHref || '#';
+      depositWalletLink.setAttribute('aria-disabled', walletHref ? 'false' : 'true');
+      if (walletHref) {
+        depositWalletLink.removeAttribute('tabindex');
+      } else {
+        depositWalletLink.setAttribute('tabindex', '-1');
+      }
+    }
+
+    if (openDepositWalletButton) {
+      openDepositWalletButton.href = walletHref || '#';
+      openDepositWalletButton.setAttribute('aria-disabled', walletHref ? 'false' : 'true');
+      if (walletHref) {
+        openDepositWalletButton.classList.remove('is-disabled-link');
+      } else {
+        openDepositWalletButton.classList.add('is-disabled-link');
+      }
+    }
+
     depositAssetLabels.forEach((node) => {
       node.textContent = assetSymbol;
     });
@@ -274,6 +340,11 @@
     depositAmountInput.disabled = !canDeposit;
     depositNetworkSelect.disabled = !canDeposit;
     depositTxRefInput.disabled = !canDeposit;
+    copyDepositWalletButton.disabled = !walletConfigured;
+    if (openDepositWalletButton) {
+      openDepositWalletButton.classList.toggle('is-disabled-link', !walletConfigured);
+      openDepositWalletButton.setAttribute('aria-disabled', walletConfigured ? 'false' : 'true');
+    }
 
     const withdrawUnlocked = state.withdrawalAccess.status === 'approved';
     const canWithdraw = withdrawalsEnabled && withdrawUnlocked;
@@ -330,17 +401,25 @@
     renderWithdrawals(withdrawalData.withdrawals || []);
     renderDeposits(depositData.deposits || []);
 
-    const activeCount = (investmentData.investments || []).filter((inv) => inv.status === 'active').length;
-    const completedCount = (investmentData.investments || []).filter((inv) => inv.status === 'completed').length;
-    const totalWithdrawalAmount = (withdrawalData.withdrawals || []).reduce(
-      (sum, wd) => sum + Number(wd.amount || 0),
-      0,
+    const investments = investmentData.investments || [];
+    const deposits = depositData.deposits || [];
+
+    const activeCount = investments.filter((inv) => inv.status === 'active').length;
+    const realizedProfit = normalizeMoney(
+      investments
+        .filter((inv) => inv.status === 'completed')
+        .reduce((sum, inv) => sum + Number(inv.amount || 0) * (Number(inv.returnPercent || 0) / 100), 0),
+    );
+    const totalDeposits = normalizeMoney(
+      deposits
+        .filter((item) => String(item.status || '').toLowerCase() === 'approved')
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0),
     );
 
-    kpiBalance.textContent = money.format(Number(meData.user.balance || 0));
-    kpiActive.textContent = String(activeCount);
-    kpiCompleted.textContent = String(completedCount);
-    kpiWithdrawals.textContent = money.format(totalWithdrawalAmount);
+    animateKpi(kpiDeposits, totalDeposits, { currency: true });
+    animateKpi(kpiActive, activeCount);
+    animateKpi(kpiProfit, realizedProfit, { currency: true });
+    animateKpi(kpiBalance, Number(meData.user.balance || 0), { currency: true });
 
     applyActionLocks();
   }

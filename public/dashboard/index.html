@@ -34,27 +34,27 @@
         <section class="page-card">
           <h1 style="margin: 0 0 6px">Welcome, <span data-user-name>User</span></h1>
           <p class="section-subtitle" style="margin: 0">
-            Verify email first, complete KYC details, then manage deposits, investments, and withdrawals
-            from one workspace.
+            Verify email first, complete KYC details, then manage allocation, liquidity, and settlement
+            activity from one workspace.
           </p>
         </section>
 
         <section class="kpis">
           <article class="kpi">
-            Available Balance
-            <strong data-kpi="balance">$0.00</strong>
+            Total Deposits
+            <strong class="mono" data-kpi="deposits">$0.00</strong>
           </article>
           <article class="kpi">
             Active Investments
-            <strong data-kpi="active">0</strong>
+            <strong class="mono" data-kpi="active">0</strong>
           </article>
           <article class="kpi">
-            Completed Plans
-            <strong data-kpi="completed">0</strong>
+            Realized Profit
+            <strong class="mono" data-kpi="profit">$0.00</strong>
           </article>
           <article class="kpi">
-            Withdrawal Total
-            <strong data-kpi="withdrawals">$0.00</strong>
+            Available Balance
+            <strong class="mono" data-kpi="balance">$0.00</strong>
           </article>
         </section>
 
@@ -197,14 +197,32 @@
           <article class="page-card">
             <h2>Add Funds</h2>
             <p class="notice">
-              Send <span data-deposit-asset>USDT</span> to the wallet below, then submit the transaction
-              reference for review.
+              The wallet below is configured by admin. It is shown for classroom/training flow only.
             </p>
             <div class="wallet-box" style="margin-top: 12px">
               <p><strong>Deposit Asset:</strong> <span data-deposit-asset>USDT</span></p>
               <p><strong>Deposit Wallet Address:</strong></p>
-              <code data-deposit-wallet-address>(not configured)</code>
+              <a
+                href="#"
+                data-deposit-wallet-link
+                target="_blank"
+                rel="noopener noreferrer"
+                style="text-decoration: none; color: inherit"
+                aria-disabled="true"
+              >
+                <code data-deposit-wallet-address>(not configured)</code>
+              </a>
               <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap">
+                <a
+                  href="#"
+                  class="btn light"
+                  data-open-deposit-wallet
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-disabled="true"
+                >
+                  Open Wallet
+                </a>
                 <button type="button" class="btn light" data-copy-deposit-wallet>Copy Address</button>
               </div>
             </div>

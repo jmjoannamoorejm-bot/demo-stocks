@@ -12,6 +12,10 @@ const SUPPORTED_KYC_ID_TYPES = ['passport', 'national_id', 'drivers_license', 'r
 const EMAIL_CODE_TTL_MINUTES = 15;
 const EMAIL_CODE_RESEND_SECONDS = 60;
 const EMAIL_CODE_MAX_ATTEMPTS = 5;
+const WITHDRAWAL_CODE_TTL_MINUTES = 10;
+const WITHDRAWAL_CODE_RESEND_SECONDS = 60;
+const WITHDRAWAL_CODE_MAX_ATTEMPTS = 5;
+const SUPPORT_MESSAGE_MAX_LENGTH = 1500;
 const ADMIN_DEFAULT_KEY = 'demo-admin-key';
 const ADMIN_DEFAULT_USERNAME = 'admin';
 const ADMIN_SESSION_TTL_HOURS = Number.isFinite(Number(process.env.ADMIN_SESSION_TTL_HOURS))
@@ -256,6 +260,7 @@ function ensureDbShape(db) {
   if (!Array.isArray(db.withdrawals)) db.withdrawals = [];
   if (!Array.isArray(db.deposits)) db.deposits = [];
   if (!Array.isArray(db.cryptoPaymentRequests)) db.cryptoPaymentRequests = [];
+  if (!Array.isArray(db.supportMessages)) db.supportMessages = [];
   if (!Array.isArray(db.auditLogs)) db.auditLogs = [];
   if (!Array.isArray(db.notifications)) db.notifications = [];
   if (!db.config || typeof db.config !== 'object') db.config = {};
@@ -298,6 +303,33 @@ function ensureDbShape(db) {
   if (typeof db.config.crypto.walletAddressEnc !== 'string') {
     db.config.crypto.walletAddressEnc = '';
   }
+
+  db.supportMessages.forEach((message) => {
+    if (!message || typeof message !== 'object') return;
+    if (!message.id) message.id = randomId('sup');
+    if (typeof message.userId !== 'string') message.userId = '';
+    if (typeof message.senderRole !== 'string') message.senderRole = 'system';
+    if (!['user', 'admin', 'system'].includes(message.senderRole)) {
+      message.senderRole = 'system';
+    }
+    if (typeof message.senderName !== 'string' || !message.senderName.trim()) {
+      message.senderName = message.senderRole === 'user' ? 'Client' : 'Support Team';
+    }
+    if (typeof message.message !== 'string') message.message = '';
+    if (typeof message.category !== 'string' || !message.category.trim()) {
+      message.category = 'chat';
+    }
+    if (!message.createdAt) message.createdAt = nowIso();
+    if (typeof message.readByUser !== 'boolean') {
+      message.readByUser = message.senderRole === 'user';
+    }
+    if (typeof message.readByAdmin !== 'boolean') {
+      message.readByAdmin = message.senderRole !== 'user';
+    }
+    if (!message.metadata || typeof message.metadata !== 'object') {
+      message.metadata = {};
+    }
+  });
 
   Object.keys(db.sessions).forEach((token) => {
     const session = db.sessions[token];
@@ -377,6 +409,44 @@ function ensureDbShape(db) {
       if (!user.emailVerification.verifiedAt) user.emailVerification.verifiedAt = null;
       if (!Number.isInteger(user.emailVerification.attempts) || user.emailVerification.attempts < 0) {
         user.emailVerification.attempts = 0;
+      }
+    }
+
+    if (!user.profile || typeof user.profile !== 'object') {
+      user.profile = {
+        phone: '',
+        dateOfBirth: '',
+        country: '',
+        stateOrProvince: '',
+        city: '',
+        addressLine1: '',
+        occupation: '',
+        referralCode: '',
+      };
+    } else {
+      if (typeof user.profile.phone !== 'string') user.profile.phone = '';
+      if (typeof user.profile.dateOfBirth !== 'string') user.profile.dateOfBirth = '';
+      if (typeof user.profile.country !== 'string') user.profile.country = '';
+      if (typeof user.profile.stateOrProvince !== 'string') user.profile.stateOrProvince = '';
+      if (typeof user.profile.city !== 'string') user.profile.city = '';
+      if (typeof user.profile.addressLine1 !== 'string') user.profile.addressLine1 = '';
+      if (typeof user.profile.occupation !== 'string') user.profile.occupation = '';
+      if (typeof user.profile.referralCode !== 'string') user.profile.referralCode = '';
+    }
+
+    if (!user.withdrawalOtp || typeof user.withdrawalOtp !== 'object') {
+      user.withdrawalOtp = {
+        codeHash: '',
+        codeExpiresAt: null,
+        lastSentAt: null,
+        attempts: 0,
+      };
+    } else {
+      if (typeof user.withdrawalOtp.codeHash !== 'string') user.withdrawalOtp.codeHash = '';
+      if (!user.withdrawalOtp.codeExpiresAt) user.withdrawalOtp.codeExpiresAt = null;
+      if (!user.withdrawalOtp.lastSentAt) user.withdrawalOtp.lastSentAt = null;
+      if (!Number.isInteger(user.withdrawalOtp.attempts) || user.withdrawalOtp.attempts < 0) {
+        user.withdrawalOtp.attempts = 0;
       }
     }
 
