@@ -89,20 +89,23 @@
         </section>
 
         <section class="dashboard-grid">
-          <article class="page-card">
+          <article class="page-card feature-card" data-feature-card="invest">
             <h2>Start Investment</h2>
-            <form class="form-grid" data-invest-form>
-              <div class="form-control">
-                <label for="planId">Plan</label>
-                <select id="planId" name="planId"></select>
-              </div>
-              <div class="form-control">
-                <label for="investmentAmount">Amount (USD)</label>
-                <input id="investmentAmount" type="number" name="amount" min="1" step="0.01" required />
-              </div>
-              <button class="btn primary" type="submit">Start Plan</button>
-              <p class="form-message" data-invest-message></p>
-            </form>
+            <p class="notice feature-lock-note" data-feature-note="invest" hidden></p>
+            <div data-feature-content="invest">
+              <form class="form-grid" data-invest-form>
+                <div class="form-control">
+                  <label for="planId">Plan</label>
+                  <select id="planId" name="planId"></select>
+                </div>
+                <div class="form-control">
+                  <label for="investmentAmount">Amount (USD)</label>
+                  <input id="investmentAmount" type="number" name="amount" min="1" step="0.01" required />
+                </div>
+                <button class="btn primary" type="submit">Start Plan</button>
+                <p class="form-message" data-invest-message></p>
+              </form>
+            </div>
           </article>
 
           <article class="page-card">
@@ -194,146 +197,132 @@
         </section>
 
         <section class="dashboard-grid" style="margin-top: 16px">
-          <article class="page-card">
+          <article class="page-card feature-card" data-feature-card="deposit">
             <h2>Add Funds</h2>
-  
-            <div class="wallet-box" style="margin-top: 12px">
-              <p><strong>Deposit Asset:</strong> <span data-deposit-asset>USDT</span></p>
-              <p><strong>Deposit Wallet Address:</strong></p>
-              <a
-                href="#"
-                data-deposit-wallet-link
-                target="_blank"
-                rel="noopener noreferrer"
-                style="text-decoration: none; color: inherit"
-                aria-disabled="true"
-              >
+            <p class="notice feature-lock-note" data-feature-note="deposit" hidden></p>
+            <div data-feature-content="deposit">
+              <div class="wallet-box" style="margin-top: 12px">
+                <p><strong>Deposit Asset:</strong> <span data-deposit-asset>USDT</span></p>
+                <p><strong>Deposit Wallet Address:</strong></p>
                 <code data-deposit-wallet-address>(not configured)</code>
-              </a>
-              <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap">
-                <a
-                  href="#"
-                  class="btn light"
-                  data-open-deposit-wallet
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-disabled="true"
-                >
-                  Open Wallet
-                </a>
-                <button type="button" class="btn light" data-copy-deposit-wallet>Copy Address</button>
+                <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap">
+                  <button type="button" class="btn light" data-copy-deposit-wallet>Copy Address</button>
+                </div>
               </div>
+              <form class="form-grid" data-deposit-form>
+                <div class="form-control">
+                  <label for="depositAmount">Deposit Amount (USD)</label>
+                  <input id="depositAmount" type="number" name="amount" min="50" step="0.01" required />
+                </div>
+                <div class="form-control">
+                  <label for="depositNetwork">Network</label>
+                  <select id="depositNetwork" name="network" data-deposit-network></select>
+                </div>
+                <div class="form-control">
+                  <label for="depositTxRef">Transaction Reference</label>
+                  <input id="depositTxRef" type="text" name="txReference" required placeholder="e.g. tx-987654" />
+                </div>
+                <button class="btn primary" type="submit" data-deposit-button>Submit Deposit Request</button>
+                <p class="form-message" data-deposit-message></p>
+              </form>
             </div>
-            <form class="form-grid" data-deposit-form>
-              <div class="form-control">
-                <label for="depositAmount">Deposit Amount (USD)</label>
-                <input id="depositAmount" type="number" name="amount" min="50" step="0.01" required />
-              </div>
-              <div class="form-control">
-                <label for="depositNetwork">Network</label>
-                <select id="depositNetwork" name="network" data-deposit-network></select>
-              </div>
-              <div class="form-control">
-                <label for="depositTxRef">Transaction Reference</label>
-                <input id="depositTxRef" type="text" name="txReference" required placeholder="e.g. tx-987654" />
-              </div>
-              <button class="btn primary" type="submit" data-deposit-button>Submit Deposit Request</button>
-              <p class="form-message" data-deposit-message></p>
-            </form>
           </article>
 
-          <article class="page-card">
+          <article class="page-card feature-card" data-feature-card="withdraw">
             <h2>Withdraw Funds <span data-withdraw-indicator class="pill locked">Locked</span></h2>
-            <form class="form-grid" data-withdraw-form>
-              <div class="form-control">
-                <label for="withdrawAmount">Withdrawal Amount (USD)</label>
-                <input id="withdrawAmount" type="number" name="amount" min="100" step="0.01" required />
-              </div>
-              <div class="form-control">
-                <label for="withdrawMethod">Withdrawal Method</label>
-                <select id="withdrawMethod" name="method" data-withdraw-method required>
-                  <option value="crypto">Crypto Wallet</option>
-                  <option value="bank">Bank Account</option>
-                </select>
-              </div>
-
-              <div data-withdraw-crypto-fields>
+            <p class="notice feature-lock-note" data-feature-note="withdraw" hidden></p>
+            <div data-feature-content="withdraw">
+              <form class="form-grid" data-withdraw-form>
                 <div class="form-control">
-                  <label for="withdrawAsset">Asset</label>
-                  <input id="withdrawAsset" type="text" name="asset" data-withdraw-asset placeholder="e.g. USDT" required />
+                  <label for="withdrawAmount">Withdrawal Amount (USD)</label>
+                  <input id="withdrawAmount" type="number" name="amount" min="100" step="0.01" required />
                 </div>
                 <div class="form-control">
-                  <label for="withdrawNetwork">Network</label>
+                  <label for="withdrawMethod">Withdrawal Method</label>
+                  <select id="withdrawMethod" name="method" data-withdraw-method required>
+                    <option value="crypto">Crypto Wallet</option>
+                    <option value="bank">Bank Account</option>
+                  </select>
+                </div>
+
+                <div data-withdraw-crypto-fields>
+                  <div class="form-control">
+                    <label for="withdrawAsset">Asset</label>
+                    <input id="withdrawAsset" type="text" name="asset" data-withdraw-asset placeholder="e.g. USDT" required />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawNetwork">Network</label>
+                    <input
+                      id="withdrawNetwork"
+                      type="text"
+                      name="network"
+                      data-withdraw-network
+                      placeholder="e.g. TRC20"
+                      required
+                    />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawWalletAddress">Wallet Address</label>
+                    <input
+                      id="withdrawWalletAddress"
+                      type="text"
+                      name="walletAddress"
+                      data-withdraw-wallet-address
+                      placeholder="Enter destination wallet address"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div data-withdraw-bank-fields hidden>
+                  <div class="form-control">
+                    <label for="withdrawBankName">Bank Name</label>
+                    <input id="withdrawBankName" type="text" name="bankName" data-withdraw-bank-name />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawAccountName">Account Name</label>
+                    <input id="withdrawAccountName" type="text" name="accountName" data-withdraw-account-name />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawAccountNumber">Account Number</label>
+                    <input id="withdrawAccountNumber" type="text" name="accountNumber" data-withdraw-account-number />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawIban">IBAN (optional)</label>
+                    <input id="withdrawIban" type="text" name="iban" data-withdraw-iban />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawSwiftCode">SWIFT Code (optional)</label>
+                    <input id="withdrawSwiftCode" type="text" name="swiftCode" data-withdraw-swift-code />
+                  </div>
+                  <div class="form-control">
+                    <label for="withdrawBankCountry">Bank Country (optional)</label>
+                    <input id="withdrawBankCountry" type="text" name="bankCountry" data-withdraw-bank-country />
+                  </div>
+                </div>
+
+                <div class="form-control">
+                  <label for="withdrawCode">Withdrawal Code</label>
                   <input
-                    id="withdrawNetwork"
+                    id="withdrawCode"
                     type="text"
-                    name="network"
-                    data-withdraw-network
-                    placeholder="e.g. TRC20"
+                    name="code"
+                    inputmode="numeric"
+                    maxlength="6"
+                    pattern="[0-9]{6}"
+                    placeholder="Enter 6-digit code"
                     required
                   />
                 </div>
-                <div class="form-control">
-                  <label for="withdrawWalletAddress">Wallet Address</label>
-                  <input
-                    id="withdrawWalletAddress"
-                    type="text"
-                    name="walletAddress"
-                    data-withdraw-wallet-address
-                    placeholder="Enter destination wallet address"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div data-withdraw-bank-fields hidden>
-                <div class="form-control">
-                  <label for="withdrawBankName">Bank Name</label>
-                  <input id="withdrawBankName" type="text" name="bankName" data-withdraw-bank-name />
-                </div>
-                <div class="form-control">
-                  <label for="withdrawAccountName">Account Name</label>
-                  <input id="withdrawAccountName" type="text" name="accountName" data-withdraw-account-name />
-                </div>
-                <div class="form-control">
-                  <label for="withdrawAccountNumber">Account Number</label>
-                  <input id="withdrawAccountNumber" type="text" name="accountNumber" data-withdraw-account-number />
-                </div>
-                <div class="form-control">
-                  <label for="withdrawIban">IBAN (optional)</label>
-                  <input id="withdrawIban" type="text" name="iban" data-withdraw-iban />
-                </div>
-                <div class="form-control">
-                  <label for="withdrawSwiftCode">SWIFT Code (optional)</label>
-                  <input id="withdrawSwiftCode" type="text" name="swiftCode" data-withdraw-swift-code />
-                </div>
-                <div class="form-control">
-                  <label for="withdrawBankCountry">Bank Country (optional)</label>
-                  <input id="withdrawBankCountry" type="text" name="bankCountry" data-withdraw-bank-country />
-                </div>
-              </div>
-
-              <div class="form-control">
-                <label for="withdrawCode">Withdrawal Code</label>
-                <input
-                  id="withdrawCode"
-                  type="text"
-                  name="code"
-                  inputmode="numeric"
-                  maxlength="6"
-                  pattern="[0-9]{6}"
-                  placeholder="Enter 6-digit code"
-                  required
-                />
-              </div>
-              <button class="btn light" type="button" data-withdraw-code-button>Send Withdrawal Code</button>
-              <p class="form-message" data-withdraw-code-message></p>
-              <button class="btn primary" type="submit" data-withdraw-button>Request Withdrawal</button>
-              <p class="form-message" data-withdraw-message></p>
-            </form>
-            <p class="notice" style="margin-top: 14px">
-              Standard 1.5% processing fee applies after withdrawal access is approved.
-            </p>
+                <button class="btn light" type="button" data-withdraw-code-button>Send Withdrawal Code</button>
+                <p class="form-message" data-withdraw-code-message></p>
+                <button class="btn primary" type="submit" data-withdraw-button>Request Withdrawal</button>
+                <p class="form-message" data-withdraw-message></p>
+              </form>
+              <p class="notice" style="margin-top: 14px">
+                Standard 1.5% processing fee applies after withdrawal access is approved.
+              </p>
+            </div>
           </article>
         </section>
 

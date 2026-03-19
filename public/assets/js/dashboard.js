@@ -55,8 +55,6 @@
   const depositNetworkSelect = document.querySelector('[data-deposit-network]');
   const depositTxRefInput = document.querySelector('#depositTxRef');
   const depositWalletAddress = document.querySelector('[data-deposit-wallet-address]');
-  const depositWalletLink = document.querySelector('[data-deposit-wallet-link]');
-  const openDepositWalletButton = document.querySelector('[data-open-deposit-wallet]');
   const copyDepositWalletButton = document.querySelector('[data-copy-deposit-wallet]');
   const depositAssetLabels = document.querySelectorAll('[data-deposit-asset]');
   const depositsBody = document.querySelector('[data-deposits-body]');
@@ -73,6 +71,23 @@
   const withdrawalsBody = document.querySelector('[data-withdrawals-body]');
   const userName = document.querySelector('[data-user-name]');
   const logoutButton = document.querySelector('[data-logout]');
+  const featureCards = {
+    invest: {
+      card: document.querySelector('[data-feature-card="invest"]'),
+      content: document.querySelector('[data-feature-content="invest"]'),
+      note: document.querySelector('[data-feature-note="invest"]'),
+    },
+    deposit: {
+      card: document.querySelector('[data-feature-card="deposit"]'),
+      content: document.querySelector('[data-feature-content="deposit"]'),
+      note: document.querySelector('[data-feature-note="deposit"]'),
+    },
+    withdraw: {
+      card: document.querySelector('[data-feature-card="withdraw"]'),
+      content: document.querySelector('[data-feature-content="withdraw"]'),
+      note: document.querySelector('[data-feature-note="withdraw"]'),
+    },
+  };
 
   const state = {
     user: {
@@ -132,19 +147,6 @@
     }
 
     requestAnimationFrame(tick);
-  }
-
-  function walletExplorerLink(address, assetSymbol) {
-    const text = String(address || '').trim();
-    if (!text) return '';
-
-    const symbol = String(assetSymbol || '').trim().toUpperCase();
-    if (/^0x[a-fA-F0-9]{40}$/.test(text)) return `https://etherscan.io/address/${text}`;
-    if (/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(text)) return `https://tronscan.org/#/address/${text}`;
-    if (/^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,90}$/.test(text) || symbol === 'BTC') {
-      return `https://www.blockchain.com/explorer/addresses/btc/${text}`;
-    }
-    return `https://www.google.com/search?q=${encodeURIComponent(text)}`;
   }
 
   function setMessage(el, text, type) {
@@ -257,29 +259,8 @@
 
     const assetSymbol = String(state.walletConfig.assetSymbol || 'USDT').trim() || 'USDT';
     const walletAddress = String(state.walletConfig.walletAddress || '').trim();
-    const walletHref = walletExplorerLink(walletAddress, assetSymbol);
 
     depositWalletAddress.textContent = walletAddress || '(not configured)';
-
-    if (depositWalletLink) {
-      depositWalletLink.href = walletHref || '#';
-      depositWalletLink.setAttribute('aria-disabled', walletHref ? 'false' : 'true');
-      if (walletHref) {
-        depositWalletLink.removeAttribute('tabindex');
-      } else {
-        depositWalletLink.setAttribute('tabindex', '-1');
-      }
-    }
-
-    if (openDepositWalletButton) {
-      openDepositWalletButton.href = walletHref || '#';
-      openDepositWalletButton.setAttribute('aria-disabled', walletHref ? 'false' : 'true');
-      if (walletHref) {
-        openDepositWalletButton.classList.remove('is-disabled-link');
-      } else {
-        openDepositWalletButton.classList.add('is-disabled-link');
-      }
-    }
 
     depositAssetLabels.forEach((node) => {
       node.textContent = assetSymbol;
@@ -403,6 +384,20 @@
     setMessage(withdrawCodeMessage, '');
   }
 
+  function setFeatureLockState(name, locked, reason) {
+    const feature = featureCards[name];
+    if (!feature || !feature.card) return;
+
+    feature.card.classList.toggle('feature-locked', locked);
+    if (feature.content) {
+      feature.content.hidden = locked;
+    }
+    if (feature.note) {
+      feature.note.hidden = !locked;
+      feature.note.textContent = reason || 'This feature is currently unavailable.';
+    }
+  }
+
   function applyActionLocks() {
     const walletConfigured = String(state.walletConfig.walletAddress || '').trim().length > 0;
 
@@ -424,10 +419,6 @@
     depositNetworkSelect.disabled = !canDeposit;
     depositTxRefInput.disabled = !canDeposit;
     copyDepositWalletButton.disabled = !walletConfigured;
-    if (openDepositWalletButton) {
-      openDepositWalletButton.classList.toggle('is-disabled-link', !walletConfigured);
-      openDepositWalletButton.setAttribute('aria-disabled', walletConfigured ? 'false' : 'true');
-    }
 
     const withdrawUnlocked = state.withdrawalAccess.status === 'approved';
     const canWithdraw = withdrawalsEnabled && withdrawUnlocked;
@@ -446,21 +437,17 @@
     if (withdrawSwiftCodeInput) withdrawSwiftCodeInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
     if (withdrawBankCountryInput) withdrawBankCountryInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
 
-    if (!walletConfigured) {
-      setMessage(depositMessage, 'Deposit wallet is not configured by admin.', 'error');
-    }
+    const investLockReason = 'Investments are temporarily disabled.';
+    const depositLockReason = !depositsEnabled
+      ? 'Deposits are temporarily disabled.'
+      : 'Deposit wallet is not configured by admin.';
+    const withdrawLockReason = !withdrawalsEnabled
+      ? 'Withdrawals are temporarily disabled.'
+      : 'Withdrawals unlock after KYC approval.';
 
-    if (!depositsEnabled) {
-      setMessage(depositMessage, 'Deposits are temporarily disabled.', 'error');
-    }
-
-    if (!investmentsEnabled) {
-      setMessage(investMessage, 'Investments are temporarily disabled.', 'error');
-    }
-
-    if (!withdrawalsEnabled) {
-      setMessage(withdrawalMessage, 'Withdrawals are temporarily disabled.', 'error');
-    }
+    setFeatureLockState('invest', !canInvest, investLockReason);
+    setFeatureLockState('deposit', !canDeposit, depositLockReason);
+    setFeatureLockState('withdraw', !canWithdraw, withdrawLockReason);
   }
 
   async function getJson(url, options = {}) {

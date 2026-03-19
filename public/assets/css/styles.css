@@ -1040,6 +1040,65 @@ h4,
   color: #0f5d52;
 }
 
+.feature-card {
+  transition: filter 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.feature-card.feature-locked {
+  border-color: #c8d4e2;
+  opacity: 0.92;
+  filter: blur(0.4px) saturate(0.75);
+}
+
+.feature-lock-note {
+  margin-top: 10px;
+}
+
+.support-chat-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #14b99f, #0f907e);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 12px 28px rgba(15, 144, 126, 0.35);
+  text-decoration: none;
+  font-family: 'Poppins', 'Source Sans 3', sans-serif;
+  font-weight: 700;
+  font-size: 0.88rem;
+  letter-spacing: 0.01em;
+}
+
+.support-chat-fab svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: currentColor;
+}
+
+.support-chat-fab:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #17caae, #11a088);
+}
+
+@media (max-width: 760px) {
+  .support-chat-fab {
+    right: 12px;
+    bottom: 12px;
+    padding: 11px;
+  }
+
+  .support-chat-fab span {
+    display: none;
+  }
+}
+
 .progress-track {
   background: #e6edf5;
 }
