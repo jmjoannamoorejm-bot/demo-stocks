@@ -249,6 +249,85 @@
                 <label for="withdrawAmount">Withdrawal Amount (USD)</label>
                 <input id="withdrawAmount" type="number" name="amount" min="100" step="0.01" required />
               </div>
+              <div class="form-control">
+                <label for="withdrawMethod">Withdrawal Method</label>
+                <select id="withdrawMethod" name="method" data-withdraw-method required>
+                  <option value="crypto">Crypto Wallet</option>
+                  <option value="bank">Bank Account</option>
+                </select>
+              </div>
+
+              <div data-withdraw-crypto-fields>
+                <div class="form-control">
+                  <label for="withdrawAsset">Asset</label>
+                  <input id="withdrawAsset" type="text" name="asset" data-withdraw-asset placeholder="e.g. USDT" required />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawNetwork">Network</label>
+                  <input
+                    id="withdrawNetwork"
+                    type="text"
+                    name="network"
+                    data-withdraw-network
+                    placeholder="e.g. TRC20"
+                    required
+                  />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawWalletAddress">Wallet Address</label>
+                  <input
+                    id="withdrawWalletAddress"
+                    type="text"
+                    name="walletAddress"
+                    data-withdraw-wallet-address
+                    placeholder="Enter destination wallet address"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div data-withdraw-bank-fields hidden>
+                <div class="form-control">
+                  <label for="withdrawBankName">Bank Name</label>
+                  <input id="withdrawBankName" type="text" name="bankName" data-withdraw-bank-name />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawAccountName">Account Name</label>
+                  <input id="withdrawAccountName" type="text" name="accountName" data-withdraw-account-name />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawAccountNumber">Account Number</label>
+                  <input id="withdrawAccountNumber" type="text" name="accountNumber" data-withdraw-account-number />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawIban">IBAN (optional)</label>
+                  <input id="withdrawIban" type="text" name="iban" data-withdraw-iban />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawSwiftCode">SWIFT Code (optional)</label>
+                  <input id="withdrawSwiftCode" type="text" name="swiftCode" data-withdraw-swift-code />
+                </div>
+                <div class="form-control">
+                  <label for="withdrawBankCountry">Bank Country (optional)</label>
+                  <input id="withdrawBankCountry" type="text" name="bankCountry" data-withdraw-bank-country />
+                </div>
+              </div>
+
+              <div class="form-control">
+                <label for="withdrawCode">Withdrawal Code</label>
+                <input
+                  id="withdrawCode"
+                  type="text"
+                  name="code"
+                  inputmode="numeric"
+                  maxlength="6"
+                  pattern="[0-9]{6}"
+                  placeholder="Enter 6-digit code"
+                  required
+                />
+              </div>
+              <button class="btn light" type="button" data-withdraw-code-button>Send Withdrawal Code</button>
+              <p class="form-message" data-withdraw-code-message></p>
               <button class="btn primary" type="submit" data-withdraw-button>Request Withdrawal</button>
               <p class="form-message" data-withdraw-message></p>
             </form>
@@ -286,6 +365,8 @@
                   <th>Amount</th>
                   <th>Fee</th>
                   <th>Net</th>
+                  <th>Method</th>
+                  <th>Destination</th>
                   <th>Status</th>
                   <th>Date</th>
                   <th>Time</th>

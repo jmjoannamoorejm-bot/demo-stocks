@@ -3,9 +3,41 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+
+  const lines = fs.readFileSync(filePath, 'utf-8').split(/\r?\n/);
+  lines.forEach((line) => {
+    const trimmed = String(line || '').trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+
+    const separator = trimmed.indexOf('=');
+    if (separator <= 0) return;
+
+    const key = trimmed.slice(0, separator).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) return;
+
+    let value = trimmed.slice(separator + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (typeof process.env[key] === 'undefined') {
+      process.env[key] = value;
+    }
+  });
+}
+
+loadEnvFile(path.join(__dirname, '.env'));
+
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
-const DB_PATH = path.join(__dirname, 'data', 'db.json');
+const DEFAULT_DB_PATH = path.join(__dirname, 'data', 'db.json');
+const DB_PATH = path.resolve(process.env.DB_PATH || DEFAULT_DB_PATH);
+const DB_PATH_IS_DEFAULT = path.resolve(DB_PATH) === path.resolve(DEFAULT_DB_PATH);
 const DEFAULT_ASSET_SYMBOL = 'USDT';
 const DEFAULT_ENABLED_NETWORKS = ['ERC20', 'TRC20', 'BEP20'];
 const SUPPORTED_KYC_ID_TYPES = ['passport', 'national_id', 'drivers_license', 'residence_permit'];
@@ -401,6 +433,7 @@ function ensureDbShape(db) {
         lastSentAt: null,
         verifiedAt: null,
         attempts: 0,
+        devLastCode: '',
       };
     } else {
       if (typeof user.emailVerification.verified !== 'boolean') user.emailVerification.verified = false;
@@ -410,6 +443,9 @@ function ensureDbShape(db) {
       if (!user.emailVerification.verifiedAt) user.emailVerification.verifiedAt = null;
       if (!Number.isInteger(user.emailVerification.attempts) || user.emailVerification.attempts < 0) {
         user.emailVerification.attempts = 0;
+      }
+      if (typeof user.emailVerification.devLastCode !== 'string') {
+        user.emailVerification.devLastCode = '';
       }
     }
 
@@ -441,6 +477,7 @@ function ensureDbShape(db) {
         codeExpiresAt: null,
         lastSentAt: null,
         attempts: 0,
+        devLastCode: '',
       };
     } else {
       if (typeof user.withdrawalOtp.codeHash !== 'string') user.withdrawalOtp.codeHash = '';
@@ -448,6 +485,9 @@ function ensureDbShape(db) {
       if (!user.withdrawalOtp.lastSentAt) user.withdrawalOtp.lastSentAt = null;
       if (!Number.isInteger(user.withdrawalOtp.attempts) || user.withdrawalOtp.attempts < 0) {
         user.withdrawalOtp.attempts = 0;
+      }
+      if (typeof user.withdrawalOtp.devLastCode !== 'string') {
+        user.withdrawalOtp.devLastCode = '';
       }
     }
 
@@ -466,6 +506,27 @@ function ensureDbShape(db) {
         user.kycProfile.proofOfAddressFileType = '';
       if (!Number.isFinite(user.kycProfile.proofOfAddressFileSize))
         user.kycProfile.proofOfAddressFileSize = 0;
+    }
+  });
+
+  db.withdrawals.forEach((withdrawal) => {
+    if (!withdrawal || typeof withdrawal !== 'object') return;
+    if (typeof withdrawal.method !== 'string') {
+      const detectedMethod =
+        withdrawal.destination && typeof withdrawal.destination === 'object' && withdrawal.destination.method
+          ? String(withdrawal.destination.method).trim().toLowerCase()
+          : '';
+      withdrawal.method = detectedMethod === 'bank' ? 'bank' : 'crypto';
+    } else {
+      withdrawal.method = String(withdrawal.method).trim().toLowerCase() === 'bank' ? 'bank' : 'crypto';
+    }
+
+    if (!withdrawal.destination || typeof withdrawal.destination !== 'object') {
+      withdrawal.destination = {
+        method: withdrawal.method,
+      };
+    } else {
+      withdrawal.destination.method = withdrawal.method;
     }
   });
 }
@@ -517,7 +578,7 @@ function allowLegacyAdminKey() {
   if (typeof process.env.LEGACY_ADMIN_KEY_ENABLED === 'string') {
     return process.env.LEGACY_ADMIN_KEY_ENABLED.toLowerCase() === 'true';
   }
-  return process.env.NODE_ENV !== 'production';
+  return false;
 }
 
 function verifyAdminKey(candidate) {
@@ -646,7 +707,58 @@ function readDb() {
 }
 
 function writeDb(data) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+  ensureDb();
+  const dir = path.dirname(DB_PATH);
+  const tempPath = path.join(dir, `.db-${process.pid}-${Date.now()}.tmp`);
+  const payload = JSON.stringify(data, null, 2);
+
+  fs.writeFileSync(tempPath, payload);
+  fs.renameSync(tempPath, DB_PATH);
+}
+
+function warnPersistenceSetup() {
+  if (!IS_PRODUCTION) return;
+  if (!DB_PATH_IS_DEFAULT) return;
+
+  console.warn(
+    `[PERSISTENCE] Using default DB_PATH (${DB_PATH}) in production. ` +
+      'Use DB_PATH with persistent storage to avoid data loss across restarts/redeploys.',
+  );
+}
+
+function warnAdminCredentialSetup() {
+  const username = String(process.env.ADMIN_USERNAME || '').trim();
+  const password = String(process.env.ADMIN_PASSWORD || '').trim();
+
+  if (username && password) return;
+
+  const message = username
+    ? '[ADMIN] ADMIN_PASSWORD is missing. Admin username/password login will fail.'
+    : '[ADMIN] ADMIN_USERNAME/ADMIN_PASSWORD missing. Admin username/password login will fail.';
+
+  if (IS_PRODUCTION) {
+    console.error(message);
+    return;
+  }
+
+  console.warn(message);
+}
+
+function warnEmailSetup() {
+  const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+
+  if (resendApiKey && resendFromEmail) return;
+
+  const message =
+    '[MAIL] RESEND_API_KEY or RESEND_FROM_EMAIL missing. Verification codes will not be delivered by email.';
+
+  if (IS_PRODUCTION) {
+    console.error(message);
+    return;
+  }
+
+  console.warn(message);
 }
 
 function randomId(prefix) {
@@ -660,9 +772,28 @@ function hashPassword(password) {
 }
 
 function verifyPassword(password, stored) {
+  if (typeof stored !== 'string' || !stored.includes(':')) {
+    return false;
+  }
+
   const [salt, hash] = stored.split(':');
-  const candidate = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(candidate, 'hex'));
+  if (!salt || !hash) {
+    return false;
+  }
+
+  try {
+    const candidate = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+    const hashBuffer = Buffer.from(hash, 'hex');
+    const candidateBuffer = Buffer.from(candidate, 'hex');
+
+    if (!hashBuffer.length || hashBuffer.length !== candidateBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(hashBuffer, candidateBuffer);
+  } catch {
+    return false;
+  }
 }
 
 function verificationCodeHash(code) {
@@ -681,12 +812,31 @@ function maskIdNumber(value) {
 }
 
 function safeEmailVerification(user) {
-  return {
+  const payload = {
     verified: Boolean(user.emailVerification && user.emailVerification.verified),
     codeExpiresAt: user.emailVerification ? user.emailVerification.codeExpiresAt : null,
     lastSentAt: user.emailVerification ? user.emailVerification.lastSentAt : null,
     verifiedAt: user.emailVerification ? user.emailVerification.verifiedAt : null,
   };
+
+  if (!IS_PRODUCTION && user.emailVerification && user.emailVerification.devLastCode) {
+    payload.devCode = user.emailVerification.devLastCode;
+  }
+
+  return payload;
+}
+
+function safeWithdrawalOtp(user) {
+  const payload = {
+    codeExpiresAt: user.withdrawalOtp ? user.withdrawalOtp.codeExpiresAt : null,
+    lastSentAt: user.withdrawalOtp ? user.withdrawalOtp.lastSentAt : null,
+  };
+
+  if (!IS_PRODUCTION && user.withdrawalOtp && user.withdrawalOtp.devLastCode) {
+    payload.devCode = user.withdrawalOtp.devLastCode;
+  }
+
+  return payload;
 }
 
 async function sendEmailVerificationCode(user, code, expiresAtIso) {
@@ -716,7 +866,7 @@ async function sendEmailVerificationCode(user, code, expiresAtIso) {
       });
 
       if (response.ok) {
-        return;
+        return true;
       }
 
       const payload = await response.text();
@@ -728,9 +878,10 @@ async function sendEmailVerificationCode(user, code, expiresAtIso) {
 
   // Fallback delivery for local/internal runs.
   console.log(`[MAIL] To: ${user.email} | Subject: Verify your email\n${message}`);
+  return false;
 }
 
-function issueEmailVerificationCode(db, user, contextLabel) {
+async function issueEmailVerificationCode(db, user, contextLabel) {
   const code = generateEmailCode();
   const expiresAt = new Date(Date.now() + EMAIL_CODE_TTL_MINUTES * 60 * 1000).toISOString();
 
@@ -740,8 +891,9 @@ function issueEmailVerificationCode(db, user, contextLabel) {
   user.emailVerification.lastSentAt = nowIso();
   user.emailVerification.verifiedAt = null;
   user.emailVerification.attempts = 0;
+  user.emailVerification.devLastCode = IS_PRODUCTION ? '' : code;
 
-  void sendEmailVerificationCode(user, code, expiresAt);
+  const delivered = await sendEmailVerificationCode(user, code, expiresAt);
 
   addAuditLog(db, 'email_verification_code_sent', {
     userId: user.id,
@@ -754,6 +906,77 @@ function issueEmailVerificationCode(db, user, contextLabel) {
     context: contextLabel || 'manual',
     expiresAt,
   });
+
+  return delivered;
+}
+
+async function sendWithdrawalCodeEmail(user, code, expiresAtIso) {
+  const message = [
+    `Your withdrawal verification code is: ${code}`,
+    `This code expires at ${new Date(expiresAtIso).toUTCString()}.`,
+    'If you did not request this, contact support immediately.',
+  ].join('\n');
+
+  const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
+  const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+
+  if (resendApiKey && resendFromEmail) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: resendFromEmail,
+          to: [user.email],
+          subject: 'Withdrawal verification code',
+          text: message,
+        }),
+      });
+
+      if (response.ok) {
+        return true;
+      }
+
+      const payload = await response.text();
+      console.error(`[MAIL][RESEND] Withdrawal code delivery failed (${response.status}): ${payload}`);
+    } catch (error) {
+      console.error(`[MAIL][RESEND] Withdrawal code delivery error: ${error.message}`);
+    }
+  }
+
+  // Fallback delivery for local/internal runs.
+  console.log(`[MAIL] To: ${user.email} | Subject: Withdrawal verification code\n${message}`);
+  return false;
+}
+
+async function issueWithdrawalOtpCode(db, user, contextLabel) {
+  const code = generateEmailCode();
+  const expiresAt = new Date(Date.now() + WITHDRAWAL_CODE_TTL_MINUTES * 60 * 1000).toISOString();
+
+  user.withdrawalOtp.codeHash = verificationCodeHash(code);
+  user.withdrawalOtp.codeExpiresAt = expiresAt;
+  user.withdrawalOtp.lastSentAt = nowIso();
+  user.withdrawalOtp.attempts = 0;
+  user.withdrawalOtp.devLastCode = IS_PRODUCTION ? '' : code;
+
+  const delivered = await sendWithdrawalCodeEmail(user, code, expiresAt);
+
+  addAuditLog(db, 'withdrawal_code_sent', {
+    userId: user.id,
+    context: contextLabel || 'manual',
+    expiresAt,
+  });
+  addNotification(db, 'withdrawal_code_sent', {
+    userId: user.id,
+    email: user.email,
+    context: contextLabel || 'manual',
+    expiresAt,
+  });
+
+  return delivered;
 }
 
 function parseCookies(req) {
@@ -919,6 +1142,7 @@ function safeUser(user) {
     balance: user.balance,
     kpiOverrides: normalizeKpiOverrides(user.kpiOverrides),
     emailVerification: safeEmailVerification(user),
+    withdrawalOtp: safeWithdrawalOtp(user),
     withdrawalAccess: user.withdrawalAccess,
     kycProfile: user.kycProfile
       ? {
@@ -1444,7 +1668,7 @@ async function handleApi(req, res, url) {
 
     const name = String(body.name || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '').trim();
+    const password = String(body.password || '');
 
     if (!name || !email || !password) {
       sendJson(res, 400, { error: 'Name, email, and password are required.' });
@@ -1480,6 +1704,14 @@ async function handleApi(req, res, url) {
         lastSentAt: null,
         verifiedAt: null,
         attempts: 0,
+        devLastCode: '',
+      },
+      withdrawalOtp: {
+        codeHash: '',
+        codeExpiresAt: null,
+        lastSentAt: null,
+        attempts: 0,
+        devLastCode: '',
       },
       withdrawalAccess: {
         status: 'locked',
@@ -1487,12 +1719,22 @@ async function handleApi(req, res, url) {
         requestedAt: null,
         reviewedAt: null,
       },
+      profile: {
+        phone: '',
+        dateOfBirth: '',
+        country: '',
+        stateOrProvince: '',
+        city: '',
+        addressLine1: '',
+        occupation: '',
+        referralCode: '',
+      },
       kycProfile: null,
       createdAt: nowIso(),
     };
 
     db.users.push(user);
-    issueEmailVerificationCode(db, user, 'registration');
+    const emailDelivered = await issueEmailVerificationCode(db, user, 'registration');
     addAuditLog(db, 'user_registered', { userId: user.id, email: user.email });
 
     const token = randomId('sess');
@@ -1511,7 +1753,10 @@ async function handleApi(req, res, url) {
       {
         user: safeUser(user),
         token,
-        message: 'Account created. A verification code has been sent to your email.',
+        message: emailDelivered
+          ? 'Account created. A verification code has been sent to your email.'
+          : 'Account created, but email delivery is currently unavailable. Please try sending the code again later.',
+        emailDelivery: emailDelivered,
       },
       {
         'Set-Cookie': buildCookie('session', token, {
@@ -1525,7 +1770,7 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/login' && method === 'POST') {
     const body = await parseBody(req);
     const email = String(body.email || '').trim().toLowerCase();
-    const password = String(body.password || '').trim();
+    const password = String(body.password || '');
 
     const user = db.users.find((candidate) => candidate.email === email);
     if (!user || !verifyPassword(password, user.passwordHash)) {
@@ -1610,11 +1855,14 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    issueEmailVerificationCode(db, auth.user, 'user_request');
+    const emailDelivered = await issueEmailVerificationCode(db, auth.user, 'user_request');
 
     writeDb(db);
     sendJson(res, 200, {
-      message: 'Verification code sent to your email.',
+      message: emailDelivered
+        ? 'Verification code sent to your email.'
+        : 'Email delivery is currently unavailable. Please retry later or contact support.',
+      emailDelivery: emailDelivered,
       emailVerification: safeEmailVerification(auth.user),
     });
     return;
@@ -1669,6 +1917,7 @@ async function handleApi(req, res, url) {
     auth.user.emailVerification.codeHash = '';
     auth.user.emailVerification.codeExpiresAt = null;
     auth.user.emailVerification.attempts = 0;
+    auth.user.emailVerification.devLastCode = '';
 
     addAuditLog(db, 'email_verified', { userId: auth.user.id });
     addNotification(db, 'email_verified', { userId: auth.user.id, email: auth.user.email });
@@ -2151,6 +2400,49 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (pathname === '/api/withdrawals/code/request' && method === 'POST') {
+    if (!auth) {
+      sendJson(res, 401, { error: 'Authentication required.' });
+      return;
+    }
+
+    if (!db.config.system.withdrawalsEnabled) {
+      sendJson(res, 403, { error: 'Withdrawals are temporarily disabled.' });
+      return;
+    }
+
+    settleMaturedInvestments(db, auth.user.id);
+
+    if (auth.user.withdrawalAccess.status !== 'approved') {
+      sendJson(res, 423, {
+        error: 'Withdrawals are locked pending KYC approval.',
+        withdrawalAccess: auth.user.withdrawalAccess,
+      });
+      return;
+    }
+
+    const lastSentAt = auth.user.withdrawalOtp.lastSentAt
+      ? new Date(auth.user.withdrawalOtp.lastSentAt).getTime()
+      : 0;
+    const earliestResend = lastSentAt + WITHDRAWAL_CODE_RESEND_SECONDS * 1000;
+    if (Date.now() < earliestResend) {
+      const waitSeconds = Math.max(1, Math.ceil((earliestResend - Date.now()) / 1000));
+      sendJson(res, 429, { error: `Please wait ${waitSeconds} seconds before requesting another code.` });
+      return;
+    }
+
+    const emailDelivered = await issueWithdrawalOtpCode(db, auth.user, 'withdrawal_request');
+    writeDb(db);
+    sendJson(res, 200, {
+      message: emailDelivered
+        ? 'Withdrawal verification code sent to your email.'
+        : 'Email delivery is currently unavailable. Please retry later or contact support.',
+      emailDelivery: emailDelivered,
+      withdrawalOtp: safeWithdrawalOtp(auth.user),
+    });
+    return;
+  }
+
   if (pathname === '/api/withdrawals' && method === 'POST') {
     if (!auth) {
       sendJson(res, 401, { error: 'Authentication required.' });
@@ -2164,6 +2456,9 @@ async function handleApi(req, res, url) {
 
     const body = await parseBody(req);
     const amount = Number(body.amount);
+    const methodInput = String(body.method || '').trim().toLowerCase();
+    const method = methodInput === 'bank' ? 'bank' : methodInput === 'crypto' ? 'crypto' : '';
+    const code = String(body.code || '').trim();
 
     if (!Number.isFinite(amount) || amount <= 0) {
       sendJson(res, 400, { error: 'Withdrawal amount must be greater than zero.' });
@@ -2185,6 +2480,84 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    if (!/^\d{6}$/.test(code)) {
+      sendJson(res, 400, { error: 'Withdrawal code must be a 6-digit value.' });
+      return;
+    }
+
+    if (!auth.user.withdrawalOtp.codeHash || !auth.user.withdrawalOtp.codeExpiresAt) {
+      sendJson(res, 400, { error: 'No active withdrawal code. Request a new code first.' });
+      return;
+    }
+
+    if (new Date(auth.user.withdrawalOtp.codeExpiresAt).getTime() < Date.now()) {
+      sendJson(res, 400, { error: 'Withdrawal code has expired. Request a new code.' });
+      return;
+    }
+
+    if (auth.user.withdrawalOtp.attempts >= WITHDRAWAL_CODE_MAX_ATTEMPTS) {
+      sendJson(res, 429, { error: 'Too many failed attempts. Request a new withdrawal code.' });
+      return;
+    }
+
+    const incomingHash = verificationCodeHash(code);
+    if (incomingHash !== auth.user.withdrawalOtp.codeHash) {
+      auth.user.withdrawalOtp.attempts += 1;
+      writeDb(db);
+      sendJson(res, 400, { error: 'Invalid withdrawal code.' });
+      return;
+    }
+
+    if (!method) {
+      sendJson(res, 400, { error: 'Withdrawal method is required (crypto or bank).' });
+      return;
+    }
+
+    let destination;
+    if (method === 'crypto') {
+      const asset = String(body.asset || '').trim().toUpperCase();
+      const network = String(body.network || '').trim().toUpperCase();
+      const walletAddress = String(body.walletAddress || '').trim();
+
+      if (!asset || !network || !walletAddress) {
+        sendJson(res, 400, {
+          error: 'Crypto withdrawals require asset, network, and wallet address.',
+        });
+        return;
+      }
+
+      destination = {
+        method: 'crypto',
+        asset,
+        network,
+        walletAddress,
+      };
+    } else {
+      const bankName = String(body.bankName || '').trim();
+      const accountName = String(body.accountName || '').trim();
+      const accountNumber = String(body.accountNumber || '').trim();
+      const iban = String(body.iban || '').trim();
+      const swiftCode = String(body.swiftCode || '').trim().toUpperCase();
+      const country = String(body.bankCountry || '').trim();
+
+      if (!bankName || !accountName || !accountNumber) {
+        sendJson(res, 400, {
+          error: 'Bank withdrawals require bank name, account name, and account number.',
+        });
+        return;
+      }
+
+      destination = {
+        method: 'bank',
+        bankName,
+        accountName,
+        accountNumber,
+        iban,
+        swiftCode,
+        country,
+      };
+    }
+
     const feePercent = 1.5;
     const fee = normalizeMoney(amount * (feePercent / 100));
     const totalDebit = normalizeMoney(amount + fee);
@@ -2197,6 +2570,11 @@ async function handleApi(req, res, url) {
     }
 
     auth.user.balance = normalizeMoney(auth.user.balance - totalDebit);
+    auth.user.withdrawalOtp.codeHash = '';
+    auth.user.withdrawalOtp.codeExpiresAt = null;
+    auth.user.withdrawalOtp.lastSentAt = null;
+    auth.user.withdrawalOtp.attempts = 0;
+    auth.user.withdrawalOtp.devLastCode = '';
 
     const withdrawal = {
       id: randomId('wd'),
@@ -2204,6 +2582,8 @@ async function handleApi(req, res, url) {
       amount: normalizeMoney(amount),
       fee,
       netAmount: normalizeMoney(amount - fee),
+      method,
+      destination,
       status: 'processing',
       createdAt: nowIso(),
     };
@@ -2214,6 +2594,7 @@ async function handleApi(req, res, url) {
       withdrawalId: withdrawal.id,
       amount: withdrawal.amount,
       fee,
+      method,
     });
     writeDb(db);
 
@@ -2268,6 +2649,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 ensureDb();
+warnPersistenceSetup();
+warnAdminCredentialSetup();
+warnEmailSetup();
 
 server.listen(PORT, HOST, () => {
   console.log(`Server listening on http://${HOST}:${PORT}`);

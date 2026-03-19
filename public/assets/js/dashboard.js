@@ -32,6 +32,21 @@
   const withdrawButton = document.querySelector('[data-withdraw-button]');
   const withdrawInput = document.querySelector('#withdrawAmount');
   const withdrawIndicator = document.querySelector('[data-withdraw-indicator]');
+  const withdrawMethodSelect = document.querySelector('[data-withdraw-method]');
+  const withdrawCryptoFields = document.querySelector('[data-withdraw-crypto-fields]');
+  const withdrawBankFields = document.querySelector('[data-withdraw-bank-fields]');
+  const withdrawAssetInput = document.querySelector('[data-withdraw-asset]');
+  const withdrawNetworkInput = document.querySelector('[data-withdraw-network]');
+  const withdrawWalletAddressInput = document.querySelector('[data-withdraw-wallet-address]');
+  const withdrawBankNameInput = document.querySelector('[data-withdraw-bank-name]');
+  const withdrawAccountNameInput = document.querySelector('[data-withdraw-account-name]');
+  const withdrawAccountNumberInput = document.querySelector('[data-withdraw-account-number]');
+  const withdrawIbanInput = document.querySelector('[data-withdraw-iban]');
+  const withdrawSwiftCodeInput = document.querySelector('[data-withdraw-swift-code]');
+  const withdrawBankCountryInput = document.querySelector('[data-withdraw-bank-country]');
+  const withdrawCodeInput = document.querySelector('#withdrawCode');
+  const withdrawCodeButton = document.querySelector('[data-withdraw-code-button]');
+  const withdrawCodeMessage = document.querySelector('[data-withdraw-code-message]');
 
   const depositForm = document.querySelector('[data-deposit-form]');
   const depositMessage = document.querySelector('[data-deposit-message]');
@@ -269,6 +284,13 @@
     depositAssetLabels.forEach((node) => {
       node.textContent = assetSymbol;
     });
+
+    if (withdrawAssetInput) {
+      withdrawAssetInput.value = assetSymbol;
+    }
+    if (withdrawNetworkInput && state.walletConfig.defaultNetwork) {
+      withdrawNetworkInput.value = state.walletConfig.defaultNetwork;
+    }
   }
 
   function renderDeposits(deposits) {
@@ -295,7 +317,7 @@
 
   function renderWithdrawals(withdrawals) {
     if (!withdrawals.length) {
-      withdrawalsBody.innerHTML = '<tr><td colspan="6">No withdrawals yet.</td></tr>';
+      withdrawalsBody.innerHTML = '<tr><td colspan="8">No withdrawals yet.</td></tr>';
       return;
     }
 
@@ -308,16 +330,77 @@
 
         const statusClass = item.status === 'processing' ? 'processing' : 'completed';
 
+        const method = String(item.method || 'crypto').toLowerCase() === 'bank' ? 'Bank' : 'Crypto';
+        const destination = item.destination || {};
+        const destinationText =
+          method === 'Bank'
+            ? [destination.bankName, destination.accountName, destination.accountNumber].filter(Boolean).join(' / ') || '-'
+            : [destination.asset, destination.network, destination.walletAddress].filter(Boolean).join(' / ') || '-';
+
         return `<tr>
           <td>${money.format(Number(item.amount || 0))}</td>
           <td>${money.format(Number(fee || 0))}</td>
           <td>${money.format(Number(netAmount || 0))}</td>
+          <td>${method}</td>
+          <td>${destinationText}</td>
           <td><span class="pill ${statusClass}">${String(item.status || 'processing').replace(/_/g, ' ')}</span></td>
           <td>${new Date(item.createdAt).toLocaleDateString()}</td>
           <td>${new Date(item.createdAt).toLocaleTimeString()}</td>
         </tr>`;
       })
       .join('');
+  }
+
+  function toggleWithdrawalMethodFields() {
+    const method = String(withdrawMethodSelect.value || '').trim().toLowerCase() === 'bank' ? 'bank' : 'crypto';
+    const isBank = method === 'bank';
+
+    if (withdrawCryptoFields) withdrawCryptoFields.hidden = isBank;
+    if (withdrawBankFields) withdrawBankFields.hidden = !isBank;
+
+    if (withdrawAssetInput) {
+      withdrawAssetInput.required = !isBank;
+      withdrawAssetInput.disabled = isBank;
+    }
+    if (withdrawNetworkInput) {
+      withdrawNetworkInput.required = !isBank;
+      withdrawNetworkInput.disabled = isBank;
+    }
+    if (withdrawWalletAddressInput) {
+      withdrawWalletAddressInput.required = !isBank;
+      withdrawWalletAddressInput.disabled = isBank;
+    }
+
+    if (withdrawBankNameInput) {
+      withdrawBankNameInput.required = isBank;
+      withdrawBankNameInput.disabled = !isBank;
+    }
+    if (withdrawAccountNameInput) {
+      withdrawAccountNameInput.required = isBank;
+      withdrawAccountNameInput.disabled = !isBank;
+    }
+    if (withdrawAccountNumberInput) {
+      withdrawAccountNumberInput.required = isBank;
+      withdrawAccountNumberInput.disabled = !isBank;
+    }
+    if (withdrawIbanInput) withdrawIbanInput.disabled = !isBank;
+    if (withdrawSwiftCodeInput) withdrawSwiftCodeInput.disabled = !isBank;
+    if (withdrawBankCountryInput) withdrawBankCountryInput.disabled = !isBank;
+  }
+
+  function renderWithdrawalCodeState(withdrawalOtp) {
+    if (!withdrawCodeMessage) return;
+
+    const info = withdrawalOtp || {};
+    if (info.codeExpiresAt) {
+      setMessage(
+        withdrawCodeMessage,
+        `Withdrawal code active until ${new Date(info.codeExpiresAt).toLocaleString()}.`,
+      );
+      return;
+    }
+
+    setMessage(withdrawCodeMessage, '');
   }
 
   function applyActionLocks() {
@@ -349,7 +432,19 @@
     const withdrawUnlocked = state.withdrawalAccess.status === 'approved';
     const canWithdraw = withdrawalsEnabled && withdrawUnlocked;
     withdrawButton.disabled = !canWithdraw;
+    withdrawCodeButton.disabled = !canWithdraw;
     withdrawInput.disabled = !canWithdraw;
+    withdrawMethodSelect.disabled = !canWithdraw;
+    withdrawCodeInput.disabled = !canWithdraw;
+    if (withdrawAssetInput) withdrawAssetInput.disabled = !canWithdraw || withdrawMethodSelect.value === 'bank';
+    if (withdrawNetworkInput) withdrawNetworkInput.disabled = !canWithdraw || withdrawMethodSelect.value === 'bank';
+    if (withdrawWalletAddressInput) withdrawWalletAddressInput.disabled = !canWithdraw || withdrawMethodSelect.value === 'bank';
+    if (withdrawBankNameInput) withdrawBankNameInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
+    if (withdrawAccountNameInput) withdrawAccountNameInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
+    if (withdrawAccountNumberInput) withdrawAccountNumberInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
+    if (withdrawIbanInput) withdrawIbanInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
+    if (withdrawSwiftCodeInput) withdrawSwiftCodeInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
+    if (withdrawBankCountryInput) withdrawBankCountryInput.disabled = !canWithdraw || withdrawMethodSelect.value !== 'bank';
 
     if (!walletConfigured) {
       setMessage(depositMessage, 'Deposit wallet is not configured by admin.', 'error');
@@ -396,10 +491,12 @@
     userName.textContent = meData.user.name;
     renderPlans(plansData.plans || []);
     renderEmailVerification(meData.user.emailVerification || {});
+    renderWithdrawalCodeState(meData.user.withdrawalOtp || {});
     renderWithdrawalAccess(accessData.withdrawalAccess);
     renderWalletConfig(walletConfigData.config, walletConfigData.systemSettings);
     renderWithdrawals(withdrawalData.withdrawals || []);
     renderDeposits(depositData.deposits || []);
+    toggleWithdrawalMethodFields();
 
     const investments = investmentData.investments || [];
     const deposits = depositData.deposits || [];
@@ -445,7 +542,8 @@
 
     try {
       const data = await getJson('/api/email-verification/request', { method: 'POST' });
-      setMessage(emailMessage, data.message || 'Verification code sent.', 'success');
+      const statusType = data.emailDelivery === false ? 'error' : 'success';
+      setMessage(emailMessage, data.message || 'Verification code sent.', statusType);
       await loadDashboard();
     } catch (error) {
       setMessage(emailMessage, error.message, 'error');
@@ -581,20 +679,69 @@
     }
 
     const amount = Number(withdrawalForm.querySelector('[name="amount"]').value);
+    const method = String(withdrawMethodSelect.value || '').trim().toLowerCase() === 'bank' ? 'bank' : 'crypto';
+    const code = String(withdrawCodeInput.value || '').trim();
+    const payload = {
+      amount,
+      method,
+      code,
+    };
+
+    if (!/^\d{6}$/.test(code)) {
+      setMessage(withdrawalMessage, 'Withdrawal code must be a valid 6-digit value.', 'error');
+      return;
+    }
+
+    if (method === 'bank') {
+      payload.bankName = String(withdrawBankNameInput.value || '').trim();
+      payload.accountName = String(withdrawAccountNameInput.value || '').trim();
+      payload.accountNumber = String(withdrawAccountNumberInput.value || '').trim();
+      payload.iban = String(withdrawIbanInput.value || '').trim();
+      payload.swiftCode = String(withdrawSwiftCodeInput.value || '').trim();
+      payload.bankCountry = String(withdrawBankCountryInput.value || '').trim();
+    } else {
+      payload.asset = String(withdrawAssetInput.value || '').trim();
+      payload.network = String(withdrawNetworkInput.value || '').trim();
+      payload.walletAddress = String(withdrawWalletAddressInput.value || '').trim();
+    }
 
     try {
-      await getJson('/api/withdrawals', {
+      const data = await getJson('/api/withdrawals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify(payload),
       });
 
-      setMessage(withdrawalMessage, 'Withdrawal request submitted.', 'success');
+      setMessage(withdrawalMessage, data.message || 'Withdrawal request submitted.', 'success');
       withdrawalForm.reset();
+      toggleWithdrawalMethodFields();
       await loadDashboard();
     } catch (error) {
       setMessage(withdrawalMessage, error.message, 'error');
     }
+  });
+
+  withdrawCodeButton.addEventListener('click', async () => {
+    setMessage(withdrawalMessage, '');
+    setMessage(withdrawCodeMessage, '');
+
+    if (state.withdrawalAccess.status !== 'approved') {
+      setMessage(withdrawCodeMessage, 'Withdrawals are locked until KYC is approved.', 'error');
+      return;
+    }
+
+    try {
+      const data = await getJson('/api/withdrawals/code/request', { method: 'POST' });
+      const statusType = data.emailDelivery === false ? 'error' : 'success';
+      setMessage(withdrawCodeMessage, data.message || 'Withdrawal code sent.', statusType);
+      await loadDashboard();
+    } catch (error) {
+      setMessage(withdrawCodeMessage, error.message, 'error');
+    }
+  });
+
+  withdrawMethodSelect.addEventListener('change', () => {
+    toggleWithdrawalMethodFields();
   });
 
   copyDepositWalletButton.addEventListener('click', async () => {
@@ -629,4 +776,6 @@
 
     setMessage(investMessage, error.message || 'Failed to load dashboard.', 'error');
   });
+
+  toggleWithdrawalMethodFields();
 })();

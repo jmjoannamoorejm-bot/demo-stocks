@@ -31,7 +31,12 @@
         return;
       }
 
-      setMessage(mode === 'register' ? 'Account created. Redirecting...' : 'Login successful. Redirecting...', 'success');
+      if (mode === 'register') {
+        const statusType = data.emailDelivery === false ? 'error' : 'success';
+        setMessage(data.message || 'Account created. Redirecting...', statusType);
+      } else {
+        setMessage('Login successful. Redirecting...', 'success');
+      }
       window.setTimeout(() => {
         window.location.href = '/dashboard';
       }, 600);
