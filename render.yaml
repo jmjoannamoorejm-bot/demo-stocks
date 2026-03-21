@@ -20,6 +20,8 @@ services:
         value: 3000
       - key: DB_PATH
         value: /var/data/db.json
+      - key: DATABASE_URL
+        sync: false
       - key: LEGACY_ADMIN_KEY_ENABLED
         value: false
       - key: ADMIN_USERNAME
@@ -33,4 +35,18 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: KYC_STORAGE_PROVIDER
+        value: ""
+      - key: KYC_LOCAL_DIR
+        value: /var/data/kyc_docs
+      - key: KYC_S3_REGION
+        sync: false
+      - key: KYC_S3_ENDPOINT
+        sync: false
+      - key: KYC_S3_BUCKET
+        sync: false
+      - key: KYC_S3_ACCESS_KEY_ID
+        sync: false
+      - key: KYC_S3_SECRET_ACCESS_KEY
         sync: false

@@ -10,6 +10,12 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "NODE_ENV=development HOST=127.0.0.1 PORT=3000 node server.js"
+    "dev": "NODE_ENV=development HOST=127.0.0.1 PORT=3000 node server.js",
+    "reset-admin": "node scripts/reset-admin-credentials.js",
+    "backup-db": "node scripts/backup-db.js",
+    "migrate-db": "node scripts/migrate-json-to-postgres.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   }
 }

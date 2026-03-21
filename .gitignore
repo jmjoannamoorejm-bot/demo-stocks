@@ -9,3 +9,4 @@ yarn-error.log*
 # local runtime data
 *.log
 data/db.json
+backups/

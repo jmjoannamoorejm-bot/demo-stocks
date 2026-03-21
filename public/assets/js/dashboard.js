@@ -155,6 +155,24 @@
     el.className = `form-message ${type || ''}`.trim();
   }
 
+  function fileToPayload(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        const base64 = result.includes(',') ? result.split(',')[1] : '';
+        resolve({
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          dataBase64: base64,
+        });
+      };
+      reader.onerror = () => reject(new Error('Unable to read one of the KYC files.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   function getAccessDisplay(status) {
     if (status === 'approved') {
       return { label: 'Approved', badgeClass: 'approved', progress: 100 };
@@ -594,6 +612,21 @@
       return;
     }
 
+    let passportScanFile;
+    let selfiePhotoFile;
+    let proofOfAddressFile;
+
+    try {
+      [passportScanFile, selfiePhotoFile, proofOfAddressFile] = await Promise.all([
+        fileToPayload(passportFile),
+        fileToPayload(selfieFile),
+        fileToPayload(proofFile),
+      ]);
+    } catch (error) {
+      setMessage(reviewMessage, error.message || 'Unable to prepare KYC files.', 'error');
+      return;
+    }
+
     const payload = {
       legalName: String(formData.get('legalName') || '').trim(),
       dateOfBirth: String(formData.get('dateOfBirth') || '').trim(),
@@ -604,15 +637,9 @@
       city: String(formData.get('city') || '').trim(),
       stateOrProvince: String(formData.get('stateOrProvince') || '').trim(),
       postalCode: String(formData.get('postalCode') || '').trim(),
-      passportScanFileName: passportFile.name,
-      passportScanFileType: passportFile.type,
-      passportScanFileSize: passportFile.size,
-      selfiePhotoFileName: selfieFile.name,
-      selfiePhotoFileType: selfieFile.type,
-      selfiePhotoFileSize: selfieFile.size,
-      proofOfAddressFileName: proofFile.name,
-      proofOfAddressFileType: proofFile.type,
-      proofOfAddressFileSize: proofFile.size,
+      passportScanFile,
+      selfiePhotoFile,
+      proofOfAddressFile,
       note: String(formData.get('note') || '').trim(),
     };
 
@@ -717,8 +744,46 @@
       return;
     }
 
+    const method = String(withdrawMethodSelect.value || '').trim().toLowerCase() === 'bank' ? 'bank' : 'crypto';
+    const payload = { method };
+
+    if (method === 'bank') {
+      payload.bankName = String(withdrawBankNameInput.value || '').trim();
+      payload.accountName = String(withdrawAccountNameInput.value || '').trim();
+      payload.accountNumber = String(withdrawAccountNumberInput.value || '').trim();
+      payload.iban = String(withdrawIbanInput.value || '').trim();
+      payload.swiftCode = String(withdrawSwiftCodeInput.value || '').trim();
+      payload.bankCountry = String(withdrawBankCountryInput.value || '').trim();
+
+      if (!payload.bankName || !payload.accountName || !payload.accountNumber) {
+        setMessage(
+          withdrawCodeMessage,
+          'Enter bank name, account name, and account number before requesting a withdrawal code.',
+          'error',
+        );
+        return;
+      }
+    } else {
+      payload.asset = String(withdrawAssetInput.value || '').trim();
+      payload.network = String(withdrawNetworkInput.value || '').trim();
+      payload.walletAddress = String(withdrawWalletAddressInput.value || '').trim();
+
+      if (!payload.asset || !payload.network || !payload.walletAddress) {
+        setMessage(
+          withdrawCodeMessage,
+          'Enter asset, network, and wallet address before requesting a withdrawal code.',
+          'error',
+        );
+        return;
+      }
+    }
+
     try {
-      const data = await getJson('/api/withdrawals/code/request', { method: 'POST' });
+      const data = await getJson('/api/withdrawals/code/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const statusType = data.emailDelivery === false ? 'error' : 'success';
       setMessage(withdrawCodeMessage, data.message || 'Withdrawal code sent.', statusType);
       await loadDashboard();

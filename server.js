@@ -38,6 +38,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 const DEFAULT_DB_PATH = path.join(__dirname, 'data', 'db.json');
 const DB_PATH = path.resolve(process.env.DB_PATH || DEFAULT_DB_PATH);
 const DB_PATH_IS_DEFAULT = path.resolve(DB_PATH) === path.resolve(DEFAULT_DB_PATH);
+const DATABASE_URL = String(process.env.DATABASE_URL || '').trim();
+let pgPool = null;
 const DEFAULT_ASSET_SYMBOL = 'USDT';
 const DEFAULT_ENABLED_NETWORKS = ['ERC20', 'TRC20', 'BEP20'];
 const SUPPORTED_KYC_ID_TYPES = ['passport', 'national_id', 'drivers_license', 'residence_permit'];
@@ -48,7 +50,7 @@ const WITHDRAWAL_CODE_TTL_MINUTES = 10;
 const WITHDRAWAL_CODE_RESEND_SECONDS = 60;
 const WITHDRAWAL_CODE_MAX_ATTEMPTS = 5;
 const SUPPORT_MESSAGE_MAX_LENGTH = 1500;
-const ADMIN_DEFAULT_KEY = 'demo-admin-key';
+const ADMIN_DEFAULT_KEY = 'legacy-admin-key';
 const ADMIN_DEFAULT_USERNAME = 'admin';
 const ADMIN_SESSION_TTL_HOURS = Number.isFinite(Number(process.env.ADMIN_SESSION_TTL_HOURS))
   ? Math.max(1, Number(process.env.ADMIN_SESSION_TTL_HOURS))
@@ -57,6 +59,24 @@ const USER_SESSION_TTL_HOURS = Number.isFinite(Number(process.env.USER_SESSION_T
   ? Math.max(1, Number(process.env.USER_SESSION_TTL_HOURS))
   : 24;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const KYC_MAX_FILE_BYTES = 12 * 1024 * 1024;
+const KYC_LOCAL_DIR = path.resolve(process.env.KYC_LOCAL_DIR || path.join(path.dirname(DB_PATH), 'kyc_docs'));
+const KYC_STORAGE_PROVIDER = String(process.env.KYC_STORAGE_PROVIDER || '').trim().toLowerCase();
+const S3_REGION = String(process.env.KYC_S3_REGION || '').trim();
+const S3_ENDPOINT = String(process.env.KYC_S3_ENDPOINT || '').trim();
+const S3_BUCKET = String(process.env.KYC_S3_BUCKET || '').trim();
+const S3_ACCESS_KEY_ID = String(process.env.KYC_S3_ACCESS_KEY_ID || '').trim();
+const S3_SECRET_ACCESS_KEY = String(process.env.KYC_S3_SECRET_ACCESS_KEY || '').trim();
+const RATE_LIMIT_STORE = new Map();
+
+const RATE_LIMITS = {
+  register: { windowMs: 10 * 60 * 1000, max: 20 },
+  login: { windowMs: 10 * 60 * 1000, max: 40 },
+  adminLogin: { windowMs: 10 * 60 * 1000, max: 30 },
+  emailCode: { windowMs: 10 * 60 * 1000, max: 12 },
+  withdrawalCode: { windowMs: 10 * 60 * 1000, max: 12 },
+  kycRequest: { windowMs: 30 * 60 * 1000, max: 10 },
+};
 
 const plans = [
   {
@@ -200,6 +220,142 @@ function normalizeNetworkName(value) {
     .replace(/\s+/g, ' ')
     .replace(/[^A-Za-z0-9 ._()/-]/g, '')
     .slice(0, 48);
+}
+
+function clientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').trim();
+  if (forwarded) {
+    return forwarded.split(',')[0].trim() || 'unknown';
+  }
+  return String(req.socket?.remoteAddress || 'unknown');
+}
+
+function checkRateLimit(req, res, scope, options = {}) {
+  const rule = options.rule || { windowMs: 60_000, max: 60 };
+  const actor = String(options.actor || clientIp(req));
+  const now = Date.now();
+  const key = `${scope}:${actor}`;
+
+  const current = RATE_LIMIT_STORE.get(key);
+  if (!current || current.resetAt <= now) {
+    RATE_LIMIT_STORE.set(key, { count: 1, resetAt: now + rule.windowMs });
+    return true;
+  }
+
+  if (current.count >= rule.max) {
+    const retryAfter = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    sendJson(
+      res,
+      429,
+      { error: options.errorMessage || 'Too many requests. Please try again later.' },
+      { 'Retry-After': String(retryAfter) },
+    );
+    return false;
+  }
+
+  current.count += 1;
+  RATE_LIMIT_STORE.set(key, current);
+  return true;
+}
+
+function sanitizeUploadFileName(name) {
+  return String(name || '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 120);
+}
+
+function parseIncomingKycFile(payload, legacy = {}) {
+  if (payload && typeof payload === 'object') {
+    return {
+      name: String(payload.name || '').trim(),
+      type: String(payload.type || '').trim(),
+      size: Number(payload.size),
+      dataBase64: String(payload.dataBase64 || '').trim(),
+    };
+  }
+
+  return {
+    name: String(legacy.name || '').trim(),
+    type: String(legacy.type || '').trim(),
+    size: Number(legacy.size),
+    dataBase64: '',
+  };
+}
+
+async function storeKycDocument(userId, label, file) {
+  const safeName = sanitizeUploadFileName(file.name) || `${label}.bin`;
+  const ext = path.extname(safeName).toLowerCase();
+  const key = `kyc/${userId}/${Date.now()}-${randomId(label)}${ext || ''}`;
+
+  if (!file.dataBase64) {
+    return {
+      storageProvider: 'metadata-only',
+      storageKey: '',
+      storageUrl: '',
+    };
+  }
+
+  const buffer = Buffer.from(file.dataBase64, 'base64');
+  if (!buffer.length) {
+    throw new Error(`Invalid ${label} file content.`);
+  }
+
+  if (buffer.length > KYC_MAX_FILE_BYTES) {
+    throw new Error(`${label} file exceeds size limit.`);
+  }
+
+  const wantsS3 =
+    KYC_STORAGE_PROVIDER === 's3' &&
+    S3_REGION &&
+    S3_BUCKET &&
+    S3_ACCESS_KEY_ID &&
+    S3_SECRET_ACCESS_KEY;
+
+  if (wantsS3) {
+    let S3Client;
+    let PutObjectCommand;
+    try {
+      ({ S3Client, PutObjectCommand } = require('@aws-sdk/client-s3'));
+    } catch {
+      throw new Error('S3 storage selected, but @aws-sdk/client-s3 is not installed.');
+    }
+
+    const client = new S3Client({
+      region: S3_REGION,
+      endpoint: S3_ENDPOINT || undefined,
+      forcePathStyle: Boolean(S3_ENDPOINT),
+      credentials: {
+        accessKeyId: S3_ACCESS_KEY_ID,
+        secretAccessKey: S3_SECRET_ACCESS_KEY,
+      },
+    });
+
+    await client.send(
+      new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: buffer,
+        ContentType: file.type || 'application/octet-stream',
+      }),
+    );
+
+    return {
+      storageProvider: 's3',
+      storageKey: key,
+      storageUrl: '',
+    };
+  }
+
+  const localPath = path.join(KYC_LOCAL_DIR, key.replace(/^kyc\//, ''));
+  fs.mkdirSync(path.dirname(localPath), { recursive: true });
+  fs.writeFileSync(localPath, buffer);
+
+  return {
+    storageProvider: 'local',
+    storageKey: key,
+    storageUrl: localPath,
+  };
 }
 
 function networkKey(value) {
@@ -497,15 +653,25 @@ function ensureDbShape(db) {
       if (typeof user.kycProfile.passportScanFileName !== 'string') user.kycProfile.passportScanFileName = '';
       if (typeof user.kycProfile.passportScanFileType !== 'string') user.kycProfile.passportScanFileType = '';
       if (!Number.isFinite(user.kycProfile.passportScanFileSize)) user.kycProfile.passportScanFileSize = 0;
+      if (typeof user.kycProfile.passportScanStorageProvider !== 'string')
+        user.kycProfile.passportScanStorageProvider = '';
+      if (typeof user.kycProfile.passportScanStorageKey !== 'string') user.kycProfile.passportScanStorageKey = '';
       if (typeof user.kycProfile.selfiePhotoFileName !== 'string') user.kycProfile.selfiePhotoFileName = '';
       if (typeof user.kycProfile.selfiePhotoFileType !== 'string') user.kycProfile.selfiePhotoFileType = '';
       if (!Number.isFinite(user.kycProfile.selfiePhotoFileSize)) user.kycProfile.selfiePhotoFileSize = 0;
+      if (typeof user.kycProfile.selfiePhotoStorageProvider !== 'string')
+        user.kycProfile.selfiePhotoStorageProvider = '';
+      if (typeof user.kycProfile.selfiePhotoStorageKey !== 'string') user.kycProfile.selfiePhotoStorageKey = '';
       if (typeof user.kycProfile.proofOfAddressFileName !== 'string')
         user.kycProfile.proofOfAddressFileName = '';
       if (typeof user.kycProfile.proofOfAddressFileType !== 'string')
         user.kycProfile.proofOfAddressFileType = '';
       if (!Number.isFinite(user.kycProfile.proofOfAddressFileSize))
         user.kycProfile.proofOfAddressFileSize = 0;
+      if (typeof user.kycProfile.proofOfAddressStorageProvider !== 'string')
+        user.kycProfile.proofOfAddressStorageProvider = '';
+      if (typeof user.kycProfile.proofOfAddressStorageKey !== 'string')
+        user.kycProfile.proofOfAddressStorageKey = '';
     }
   });
 
@@ -664,50 +830,127 @@ function isAdminRequest(req, db) {
   return verifyAdminKey(req.headers['x-admin-key']);
 }
 
-function ensureDb() {
+function initialDbState() {
+  return {
+    users: [],
+    sessions: {},
+    adminSessions: {},
+    investments: [],
+    withdrawals: [],
+    deposits: [],
+    cryptoPaymentRequests: [],
+    auditLogs: [],
+    notifications: [],
+    config: {
+      system: {
+        depositsEnabled: true,
+        investmentsEnabled: true,
+        withdrawalsEnabled: true,
+        walletPaymentsEnabled: true,
+      },
+      crypto: {
+        assetSymbol: DEFAULT_ASSET_SYMBOL,
+        walletAddressEnc: '',
+        defaultNetwork: DEFAULT_ENABLED_NETWORKS[0],
+        enabledNetworks: [...DEFAULT_ENABLED_NETWORKS],
+      },
+    },
+  };
+}
+
+function hasPostgresStorage() {
+  return Boolean(DATABASE_URL);
+}
+
+async function getPostgresPool() {
+  if (!hasPostgresStorage()) return null;
+  if (pgPool) return pgPool;
+
+  let Pool;
+  try {
+    ({ Pool } = require('pg'));
+  } catch {
+    throw new Error('DATABASE_URL is set but package "pg" is not installed. Run: npm install pg');
+  }
+
+  const useSsl = process.env.PGSSLMODE === 'require' || IS_PRODUCTION;
+  pgPool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: useSsl ? { rejectUnauthorized: false } : false,
+  });
+
+  return pgPool;
+}
+
+async function ensureDb() {
+  if (hasPostgresStorage()) {
+    const pool = await getPostgresPool();
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        id SMALLINT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(
+      `
+      INSERT INTO app_state (id, data)
+      VALUES ($1, $2::jsonb)
+      ON CONFLICT (id) DO NOTHING
+      `,
+      [1, JSON.stringify(initialDbState())],
+    );
+    return;
+  }
+
   if (!fs.existsSync(path.dirname(DB_PATH))) {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   }
 
   if (!fs.existsSync(DB_PATH)) {
-    const initial = {
-      users: [],
-      sessions: {},
-      adminSessions: {},
-      investments: [],
-      withdrawals: [],
-      deposits: [],
-      cryptoPaymentRequests: [],
-      auditLogs: [],
-      notifications: [],
-      config: {
-        system: {
-          depositsEnabled: true,
-          investmentsEnabled: true,
-          withdrawalsEnabled: true,
-          walletPaymentsEnabled: true,
-        },
-        crypto: {
-          assetSymbol: DEFAULT_ASSET_SYMBOL,
-          walletAddressEnc: '',
-          defaultNetwork: DEFAULT_ENABLED_NETWORKS[0],
-          enabledNetworks: [...DEFAULT_ENABLED_NETWORKS],
-        },
-      },
-    };
-    fs.writeFileSync(DB_PATH, JSON.stringify(initial, null, 2));
+    fs.writeFileSync(DB_PATH, JSON.stringify(initialDbState(), null, 2));
   }
 }
 
-function readDb() {
-  ensureDb();
-  const db = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+async function readDb() {
+  await ensureDb();
+
+  let db;
+  if (hasPostgresStorage()) {
+    const pool = await getPostgresPool();
+    const result = await pool.query('SELECT data FROM app_state WHERE id = $1', [1]);
+    if (!result.rows.length) {
+      db = initialDbState();
+    } else {
+      db = result.rows[0].data || initialDbState();
+    }
+  } else {
+    db = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+  }
+
   ensureDbShape(db);
   return db;
 }
 
-function writeDb(data) {
-  ensureDb();
+async function writeDb(data) {
+  await ensureDb();
+
+  if (hasPostgresStorage()) {
+    const pool = await getPostgresPool();
+    const payload = JSON.stringify(data);
+    await pool.query(
+      `
+      INSERT INTO app_state (id, data, updated_at)
+      VALUES ($1, $2::jsonb, NOW())
+      ON CONFLICT (id)
+      DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+      `,
+      [1, payload],
+    );
+    return;
+  }
+
   const dir = path.dirname(DB_PATH);
   const tempPath = path.join(dir, `.db-${process.pid}-${Date.now()}.tmp`);
   const payload = JSON.stringify(data, null, 2);
@@ -717,6 +960,11 @@ function writeDb(data) {
 }
 
 function warnPersistenceSetup() {
+  if (hasPostgresStorage()) {
+    console.log('[PERSISTENCE] Using Postgres storage via DATABASE_URL.');
+    return;
+  }
+
   if (!IS_PRODUCTION) return;
   if (!DB_PATH_IS_DEFAULT) return;
 
@@ -747,11 +995,13 @@ function warnAdminCredentialSetup() {
 function warnEmailSetup() {
   const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
   const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  const hasPlaceholderKey = /^re_?change[_-]?me$/i.test(resendApiKey);
+  const hasPlaceholderFrom = /@test\.|example\.com$/i.test(resendFromEmail);
 
-  if (resendApiKey && resendFromEmail) return;
+  if (resendApiKey && resendFromEmail && !hasPlaceholderKey && !hasPlaceholderFrom) return;
 
   const message =
-    '[MAIL] RESEND_API_KEY or RESEND_FROM_EMAIL missing. Verification codes will not be delivered by email.';
+    '[MAIL] RESEND_API_KEY or RESEND_FROM_EMAIL is missing/placeholder. Verification codes will not be delivered by email.';
 
   if (IS_PRODUCTION) {
     console.error(message);
@@ -848,8 +1098,10 @@ async function sendEmailVerificationCode(user, code, expiresAtIso) {
 
   const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
   const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  const hasPlaceholderKey = /^re_?change[_-]?me$/i.test(resendApiKey);
+  const hasPlaceholderFrom = /@test\.|example\.com$/i.test(resendFromEmail);
 
-  if (resendApiKey && resendFromEmail) {
+  if (resendApiKey && resendFromEmail && !hasPlaceholderKey && !hasPlaceholderFrom) {
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -876,8 +1128,10 @@ async function sendEmailVerificationCode(user, code, expiresAtIso) {
     }
   }
 
-  // Fallback delivery for local/internal runs.
-  console.log(`[MAIL] To: ${user.email} | Subject: Verify your email\n${message}`);
+  // Only print OTP to server logs in non-production for local/internal testing.
+  if (!IS_PRODUCTION) {
+    console.log(`[MAIL] To: ${user.email} | Subject: Verify your email\n${message}`);
+  }
   return false;
 }
 
@@ -919,8 +1173,10 @@ async function sendWithdrawalCodeEmail(user, code, expiresAtIso) {
 
   const resendApiKey = String(process.env.RESEND_API_KEY || '').trim();
   const resendFromEmail = String(process.env.RESEND_FROM_EMAIL || '').trim();
+  const hasPlaceholderKey = /^re_?change[_-]?me$/i.test(resendApiKey);
+  const hasPlaceholderFrom = /@test\.|example\.com$/i.test(resendFromEmail);
 
-  if (resendApiKey && resendFromEmail) {
+  if (resendApiKey && resendFromEmail && !hasPlaceholderKey && !hasPlaceholderFrom) {
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -947,8 +1203,10 @@ async function sendWithdrawalCodeEmail(user, code, expiresAtIso) {
     }
   }
 
-  // Fallback delivery for local/internal runs.
-  console.log(`[MAIL] To: ${user.email} | Subject: Withdrawal verification code\n${message}`);
+  // Only print OTP to server logs in non-production for local/internal testing.
+  if (!IS_PRODUCTION) {
+    console.log(`[MAIL] To: ${user.email} | Subject: Withdrawal verification code\n${message}`);
+  }
   return false;
 }
 
@@ -1016,13 +1274,13 @@ function sendFile(res, filePath) {
   });
 }
 
-function parseBody(req) {
+function parseBody(req, maxBytes = 1_000_000) {
   return new Promise((resolve, reject) => {
     let body = '';
 
     req.on('data', (chunk) => {
       body += chunk;
-      if (body.length > 1_000_000) {
+      if (body.length > maxBytes) {
         reject(new Error('Payload too large'));
       }
     });
@@ -1172,25 +1430,32 @@ function response404(res) {
 async function handleApi(req, res, url) {
   const pathname = url.pathname;
   const method = req.method;
-  const db = readDb();
+  const db = await readDb();
 
   settleMaturedInvestments(db);
   cleanupExpiredAdminSessions(db);
   cleanupExpiredUserSessions(db);
 
   if (pathname === '/api/health' && method === 'GET') {
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { ok: true, serverTime: nowIso() });
     return;
   }
 
   if (pathname === '/api/plans' && method === 'GET') {
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { plans });
     return;
   }
 
   if (pathname === '/api/admin/login' && method === 'POST') {
+    if (!checkRateLimit(req, res, 'admin_login', {
+      rule: RATE_LIMITS.adminLogin,
+      errorMessage: 'Too many admin login attempts. Please wait and retry.',
+    })) {
+      return;
+    }
+
     const body = await parseBody(req);
 
     const username = String(body.username || '').trim();
@@ -1215,7 +1480,7 @@ async function handleApi(req, res, url) {
       sessionExpiresAt: session.expiresAt,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(
       res,
       200,
@@ -1240,7 +1505,7 @@ async function handleApi(req, res, url) {
       delete db.adminSessions[token];
     }
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(
       res,
       200,
@@ -1321,7 +1586,7 @@ async function handleApi(req, res, url) {
         };
       });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       siteStats,
       systemSettings: db.config.system,
@@ -1352,7 +1617,7 @@ async function handleApi(req, res, url) {
       ...db.config.system,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: 'System settings updated.',
       systemSettings: db.config.system,
@@ -1409,7 +1674,7 @@ async function handleApi(req, res, url) {
       walletUpdated: Boolean(walletAddress),
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: 'Wallet settings updated.',
       config: readCryptoConfig(db),
@@ -1455,7 +1720,7 @@ async function handleApi(req, res, url) {
       reason: user.withdrawalAccess.reason,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { message: `Review ${decision}.`, user: safeUser(user) });
     return;
   }
@@ -1509,7 +1774,7 @@ async function handleApi(req, res, url) {
       decision,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: `Deposit ${decision}.`,
       deposit,
@@ -1554,7 +1819,7 @@ async function handleApi(req, res, url) {
       newBalance: user.balance,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { message: 'Balance updated.', user: safeUser(user) });
     return;
   }
@@ -1617,7 +1882,7 @@ async function handleApi(req, res, url) {
       realizedProfit: kpis.realizedProfit,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { message: 'User dashboard metrics updated.', user: safeUser(user), kpis });
     return;
   }
@@ -1658,12 +1923,19 @@ async function handleApi(req, res, url) {
       decision: request.status,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { message: `Payment marked as ${request.status}.`, paymentRequest: request });
     return;
   }
 
   if (pathname === '/api/register' && method === 'POST') {
+    if (!checkRateLimit(req, res, 'register', {
+      rule: RATE_LIMITS.register,
+      errorMessage: 'Too many registration attempts. Please wait and retry.',
+    })) {
+      return;
+    }
+
     const body = await parseBody(req);
 
     const name = String(body.name || '').trim();
@@ -1746,7 +2018,7 @@ async function handleApi(req, res, url) {
       expiresAt,
     };
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(
       res,
       201,
@@ -1768,6 +2040,13 @@ async function handleApi(req, res, url) {
   }
 
   if (pathname === '/api/login' && method === 'POST') {
+    if (!checkRateLimit(req, res, 'login', {
+      rule: RATE_LIMITS.login,
+      errorMessage: 'Too many login attempts. Please wait and retry.',
+    })) {
+      return;
+    }
+
     const body = await parseBody(req);
     const email = String(body.email || '').trim().toLowerCase();
     const password = String(body.password || '');
@@ -1787,7 +2066,7 @@ async function handleApi(req, res, url) {
       expiresAt,
     };
 
-    writeDb(db);
+    await writeDb(db);
 
     sendJson(
       res,
@@ -1808,7 +2087,7 @@ async function handleApi(req, res, url) {
       delete db.sessions[auth.token];
     }
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(
       res,
       200,
@@ -1826,7 +2105,7 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { emailVerification: safeEmailVerification(auth.user) });
     return;
   }
@@ -1834,6 +2113,14 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/email-verification/request' && method === 'POST') {
     if (!auth) {
       sendJson(res, 401, { error: 'Authentication required.' });
+      return;
+    }
+
+    if (!checkRateLimit(req, res, 'email_code', {
+      rule: RATE_LIMITS.emailCode,
+      actor: auth.user.id,
+      errorMessage: 'Too many verification code requests. Please wait and retry.',
+    })) {
       return;
     }
 
@@ -1857,7 +2144,7 @@ async function handleApi(req, res, url) {
 
     const emailDelivered = await issueEmailVerificationCode(db, auth.user, 'user_request');
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: emailDelivered
         ? 'Verification code sent to your email.'
@@ -1907,7 +2194,7 @@ async function handleApi(req, res, url) {
     const incomingHash = verificationCodeHash(code);
     if (incomingHash !== auth.user.emailVerification.codeHash) {
       auth.user.emailVerification.attempts += 1;
-      writeDb(db);
+      await writeDb(db);
       sendJson(res, 400, { error: 'Invalid verification code.' });
       return;
     }
@@ -1922,7 +2209,7 @@ async function handleApi(req, res, url) {
     addAuditLog(db, 'email_verified', { userId: auth.user.id });
     addNotification(db, 'email_verified', { userId: auth.user.id, email: auth.user.email });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: 'Email verified successfully.',
       emailVerification: safeEmailVerification(auth.user),
@@ -1936,7 +2223,7 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       config: readCryptoConfig(db),
       systemSettings: db.config.system,
@@ -1950,7 +2237,7 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { withdrawalAccess: auth.user.withdrawalAccess });
     return;
   }
@@ -1961,7 +2248,15 @@ async function handleApi(req, res, url) {
       return;
     }
 
-    const body = await parseBody(req);
+    if (!checkRateLimit(req, res, 'kyc_request', {
+      rule: RATE_LIMITS.kycRequest,
+      actor: auth.user.id,
+      errorMessage: 'Too many KYC review requests. Please wait and retry.',
+    })) {
+      return;
+    }
+
+    const body = await parseBody(req, 35 * 1024 * 1024);
     const legalName = String(body.legalName || '').trim();
     const dateOfBirth = String(body.dateOfBirth || '').trim();
     const country = String(body.country || '').trim();
@@ -1971,15 +2266,21 @@ async function handleApi(req, res, url) {
     const city = String(body.city || '').trim();
     const stateOrProvince = String(body.stateOrProvince || '').trim();
     const postalCode = String(body.postalCode || '').trim();
-    const passportScanFileName = String(body.passportScanFileName || '').trim();
-    const passportScanFileType = String(body.passportScanFileType || '').trim();
-    const passportScanFileSize = Number(body.passportScanFileSize);
-    const selfiePhotoFileName = String(body.selfiePhotoFileName || '').trim();
-    const selfiePhotoFileType = String(body.selfiePhotoFileType || '').trim();
-    const selfiePhotoFileSize = Number(body.selfiePhotoFileSize);
-    const proofOfAddressFileName = String(body.proofOfAddressFileName || '').trim();
-    const proofOfAddressFileType = String(body.proofOfAddressFileType || '').trim();
-    const proofOfAddressFileSize = Number(body.proofOfAddressFileSize);
+    const passportScanFile = parseIncomingKycFile(body.passportScanFile, {
+      name: body.passportScanFileName,
+      type: body.passportScanFileType,
+      size: body.passportScanFileSize,
+    });
+    const selfiePhotoFile = parseIncomingKycFile(body.selfiePhotoFile, {
+      name: body.selfiePhotoFileName,
+      type: body.selfiePhotoFileType,
+      size: body.selfiePhotoFileSize,
+    });
+    const proofOfAddressFile = parseIncomingKycFile(body.proofOfAddressFile, {
+      name: body.proofOfAddressFileName,
+      type: body.proofOfAddressFileType,
+      size: body.proofOfAddressFileSize,
+    });
     const note = String(body.note || '').trim();
 
     if (auth.user.withdrawalAccess.status === 'approved') {
@@ -2018,28 +2319,40 @@ async function handleApi(req, res, url) {
       sendJson(res, 400, { error: 'City is required for KYC.' });
       return;
     }
-    if (!passportScanFileName || !Number.isFinite(passportScanFileSize) || passportScanFileSize <= 0) {
+    if (!passportScanFile.name || !Number.isFinite(passportScanFile.size) || passportScanFile.size <= 0) {
       sendJson(res, 400, { error: 'Passport/ID scan file is required for KYC.' });
       return;
     }
-    if (!selfiePhotoFileName || !Number.isFinite(selfiePhotoFileSize) || selfiePhotoFileSize <= 0) {
+    if (!selfiePhotoFile.name || !Number.isFinite(selfiePhotoFile.size) || selfiePhotoFile.size <= 0) {
       sendJson(res, 400, { error: 'Selfie photo file is required for KYC.' });
       return;
     }
     if (
-      !proofOfAddressFileName ||
-      !Number.isFinite(proofOfAddressFileSize) ||
-      proofOfAddressFileSize <= 0
+      !proofOfAddressFile.name ||
+      !Number.isFinite(proofOfAddressFile.size) ||
+      proofOfAddressFile.size <= 0
     ) {
       sendJson(res, 400, { error: 'Proof of address file is required for KYC.' });
       return;
     }
-    if (passportScanFileSize > 8 * 1024 * 1024 || selfiePhotoFileSize > 8 * 1024 * 1024) {
+    if (passportScanFile.size > 8 * 1024 * 1024 || selfiePhotoFile.size > 8 * 1024 * 1024) {
       sendJson(res, 400, { error: 'Passport/ID scan and selfie files must each be under 8MB.' });
       return;
     }
-    if (proofOfAddressFileSize > 12 * 1024 * 1024) {
+    if (proofOfAddressFile.size > 12 * 1024 * 1024) {
       sendJson(res, 400, { error: 'Proof of address file must be under 12MB.' });
+      return;
+    }
+
+    let passportStorage;
+    let selfieStorage;
+    let proofStorage;
+    try {
+      passportStorage = await storeKycDocument(auth.user.id, 'passport', passportScanFile);
+      selfieStorage = await storeKycDocument(auth.user.id, 'selfie', selfiePhotoFile);
+      proofStorage = await storeKycDocument(auth.user.id, 'proof', proofOfAddressFile);
+    } catch (error) {
+      sendJson(res, 400, { error: error.message || 'Unable to store KYC documents.' });
       return;
     }
 
@@ -2053,15 +2366,21 @@ async function handleApi(req, res, url) {
       city,
       stateOrProvince,
       postalCode,
-      passportScanFileName,
-      passportScanFileType,
-      passportScanFileSize,
-      selfiePhotoFileName,
-      selfiePhotoFileType,
-      selfiePhotoFileSize,
-      proofOfAddressFileName,
-      proofOfAddressFileType,
-      proofOfAddressFileSize,
+      passportScanFileName: passportScanFile.name,
+      passportScanFileType: passportScanFile.type,
+      passportScanFileSize: passportScanFile.size,
+      passportScanStorageProvider: passportStorage.storageProvider,
+      passportScanStorageKey: passportStorage.storageKey,
+      selfiePhotoFileName: selfiePhotoFile.name,
+      selfiePhotoFileType: selfiePhotoFile.type,
+      selfiePhotoFileSize: selfiePhotoFile.size,
+      selfiePhotoStorageProvider: selfieStorage.storageProvider,
+      selfiePhotoStorageKey: selfieStorage.storageKey,
+      proofOfAddressFileName: proofOfAddressFile.name,
+      proofOfAddressFileType: proofOfAddressFile.type,
+      proofOfAddressFileSize: proofOfAddressFile.size,
+      proofOfAddressStorageProvider: proofStorage.storageProvider,
+      proofOfAddressStorageKey: proofStorage.storageKey,
       note,
       submittedAt: nowIso(),
     };
@@ -2075,9 +2394,9 @@ async function handleApi(req, res, url) {
       userId: auth.user.id,
       idType,
       country,
-      hasPassportScan: Boolean(passportScanFileName),
-      hasSelfie: Boolean(selfiePhotoFileName),
-      hasProofOfAddress: Boolean(proofOfAddressFileName),
+      hasPassportScan: Boolean(passportScanFile.name),
+      hasSelfie: Boolean(selfiePhotoFile.name),
+      hasProofOfAddress: Boolean(proofOfAddressFile.name),
       note,
     });
     addNotification(db, 'kyc_review_requested', {
@@ -2085,12 +2404,12 @@ async function handleApi(req, res, url) {
       email: auth.user.email,
       idType,
       country,
-      hasPassportScan: Boolean(passportScanFileName),
-      hasSelfie: Boolean(selfiePhotoFileName),
-      hasProofOfAddress: Boolean(proofOfAddressFileName),
+      hasPassportScan: Boolean(passportScanFile.name),
+      hasSelfie: Boolean(selfiePhotoFile.name),
+      hasProofOfAddress: Boolean(proofOfAddressFile.name),
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: 'KYC review request submitted.',
       withdrawalAccess: auth.user.withdrawalAccess,
@@ -2108,7 +2427,7 @@ async function handleApi(req, res, url) {
       .filter((deposit) => deposit.userId === auth.user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { deposits });
     return;
   }
@@ -2182,7 +2501,7 @@ async function handleApi(req, res, url) {
       amount: deposit.amount,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 201, {
       message: 'Deposit request submitted for review.',
       deposit,
@@ -2200,7 +2519,7 @@ async function handleApi(req, res, url) {
       .filter((item) => item.userId === auth.user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { paymentRequests: items });
     return;
   }
@@ -2276,7 +2595,7 @@ async function handleApi(req, res, url) {
       paymentRequestId: paymentRequest.id,
     });
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 201, {
       message: 'Verification in progress (usually takes 10-30 minutes).',
       paymentRequest,
@@ -2292,7 +2611,7 @@ async function handleApi(req, res, url) {
 
     settleMaturedInvestments(db, auth.user.id);
     const dashboardKpis = computeUserDashboardKpis(db, auth.user);
-    writeDb(db);
+    await writeDb(db);
 
     sendJson(res, 200, { user: safeUser(auth.user), dashboardKpis });
     return;
@@ -2310,7 +2629,7 @@ async function handleApi(req, res, url) {
       .filter((investment) => investment.userId === auth.user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { investments });
     return;
   }
@@ -2373,7 +2692,7 @@ async function handleApi(req, res, url) {
     };
 
     db.investments.push(investment);
-    writeDb(db);
+    await writeDb(db);
 
     sendJson(res, 201, {
       message: `${plan.name} plan started successfully.`,
@@ -2395,7 +2714,7 @@ async function handleApi(req, res, url) {
       .filter((withdrawal) => withdrawal.userId === auth.user.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, { withdrawals });
     return;
   }
@@ -2408,6 +2727,14 @@ async function handleApi(req, res, url) {
 
     if (!db.config.system.withdrawalsEnabled) {
       sendJson(res, 403, { error: 'Withdrawals are temporarily disabled.' });
+      return;
+    }
+
+    if (!checkRateLimit(req, res, 'withdrawal_code', {
+      rule: RATE_LIMITS.withdrawalCode,
+      actor: auth.user.id,
+      errorMessage: 'Too many withdrawal code requests. Please wait and retry.',
+    })) {
       return;
     }
 
@@ -2431,8 +2758,43 @@ async function handleApi(req, res, url) {
       return;
     }
 
+    const body = await parseBody(req);
+    const methodInput = String(body.method || '').trim().toLowerCase();
+    const method = methodInput === 'bank' ? 'bank' : methodInput === 'crypto' ? 'crypto' : '';
+
+    if (!method) {
+      sendJson(res, 400, {
+        error: 'Select a withdrawal method and enter destination details before requesting a code.',
+      });
+      return;
+    }
+
+    if (method === 'crypto') {
+      const asset = String(body.asset || '').trim().toUpperCase();
+      const network = String(body.network || '').trim().toUpperCase();
+      const walletAddress = String(body.walletAddress || '').trim();
+
+      if (!asset || !network || !walletAddress) {
+        sendJson(res, 400, {
+          error: 'Enter crypto destination details (asset, network, wallet address) before requesting a code.',
+        });
+        return;
+      }
+    } else {
+      const bankName = String(body.bankName || '').trim();
+      const accountName = String(body.accountName || '').trim();
+      const accountNumber = String(body.accountNumber || '').trim();
+
+      if (!bankName || !accountName || !accountNumber) {
+        sendJson(res, 400, {
+          error: 'Enter bank destination details (bank name, account name, account number) before requesting a code.',
+        });
+        return;
+      }
+    }
+
     const emailDelivered = await issueWithdrawalOtpCode(db, auth.user, 'withdrawal_request');
-    writeDb(db);
+    await writeDb(db);
     sendJson(res, 200, {
       message: emailDelivered
         ? 'Withdrawal verification code sent to your email.'
@@ -2503,7 +2865,7 @@ async function handleApi(req, res, url) {
     const incomingHash = verificationCodeHash(code);
     if (incomingHash !== auth.user.withdrawalOtp.codeHash) {
       auth.user.withdrawalOtp.attempts += 1;
-      writeDb(db);
+      await writeDb(db);
       sendJson(res, 400, { error: 'Invalid withdrawal code.' });
       return;
     }
@@ -2596,7 +2958,7 @@ async function handleApi(req, res, url) {
       fee,
       method,
     });
-    writeDb(db);
+    await writeDb(db);
 
     sendJson(res, 201, {
       message: 'Withdrawal request submitted.',
@@ -2648,11 +3010,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-ensureDb();
-warnPersistenceSetup();
-warnAdminCredentialSetup();
-warnEmailSetup();
+async function bootstrap() {
+  await ensureDb();
+  warnPersistenceSetup();
+  warnAdminCredentialSetup();
+  warnEmailSetup();
 
-server.listen(PORT, HOST, () => {
-  console.log(`Server listening on http://${HOST}:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Server listening on http://${HOST}:${PORT}`);
+  });
+}
+
+bootstrap().catch((error) => {
+  console.error(`[BOOT] Failed to initialize storage: ${error.message}`);
+  process.exit(1);
 });

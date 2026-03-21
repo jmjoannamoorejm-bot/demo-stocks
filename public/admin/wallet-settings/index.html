@@ -32,6 +32,9 @@
           <p class="section-subtitle" style="margin: 0">
             Manage wallet settings, KYC approvals, deposit requests, user balances, and core platform toggles.
           </p>
+          <p class="notice" style="margin: 10px 0 0">
+            Operational guide: configure wallet + networks first, keep system toggles enabled only for features that are ready, review KYC and deposit queues daily, and monitor recent notifications for delivery or review issues.
+          </p>
 
           <form class="form-grid" data-admin-auth style="margin-top: 12px">
             <div class="form-control">
@@ -65,8 +68,7 @@
           <article class="page-card">
             <h2>Wallet Settings</h2>
             <p class="notice" style="margin: 0 0 12px">
-              Wallet details set here are reflected on the user dashboard as a clearly marked TEST
-              WALLET address.
+              These values are shown on the user dashboard and are used for deposit routing. Always confirm asset symbol, default network, and enabled networks before going live.
             </p>
             <form class="form-grid" data-wallet-form>
               <div class="form-control">
@@ -104,6 +106,9 @@
 
           <article class="page-card">
             <h2>System Toggles</h2>
+            <p class="notice" style="margin: 0 0 12px">
+              Use these toggles for controlled operations: turn features off during maintenance, fraud checks, or wallet updates. Changes are immediate for all users.
+            </p>
             <form class="form-grid" data-system-form>
               <div class="form-control">
                 <label for="depositsEnabled">Deposits</label>
@@ -157,6 +162,9 @@
 
         <section class="page-card" style="margin-top: 16px">
           <h2>Pending KYC Reviews</h2>
+          <p class="notice" style="margin: 0 0 12px">
+            Approve only when profile fields and uploaded document metadata are complete. Rejections should include a clear reason to guide the user.
+          </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
@@ -175,6 +183,9 @@
 
         <section class="page-card" style="margin-top: 16px">
           <h2>Pending Deposits</h2>
+          <p class="notice" style="margin: 0 0 12px">
+            Verify network and transaction reference before approval. Approved deposits immediately credit user balances.
+          </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
@@ -195,6 +206,9 @@
 
         <section class="page-card" style="margin-top: 16px">
           <h2>Wallet Payment Requests</h2>
+          <p class="notice" style="margin: 0 0 12px">
+            Review each request against blockchain evidence before marking verified. Rejected requests should include an internal review note.
+          </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
@@ -215,6 +229,9 @@
 
         <section class="page-card" style="margin-top: 16px">
           <h2>User Accounts</h2>
+          <p class="notice" style="margin: 0 0 12px">
+            Balance and KPI adjustments are sensitive actions. Use them for controlled corrections and keep audit context in your operational records.
+          </p>
           <div class="table-wrap">
             <table class="table">
               <thead>
